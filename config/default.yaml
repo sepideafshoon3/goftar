@@ -1,0 +1,35 @@
+# Goftar default configuration. Copy to ./goftar.yaml (or pass --config) and edit.
+# Unknown keys are rejected, so typos fail loudly.
+
+engine: faster_whisper
+model: small            # tiny | base | small | medium | large-v3 | path to a CTranslate2 model dir
+models_dir: models      # `goftar models download <name>` saves models here
+device: auto            # auto | cpu | cuda
+compute_type: auto      # CPU: int8 | GPU (4 GB VRAM): int8_float16 | GPU: float16
+cpu_threads: 0          # 0 = library default; physical core count is a good value (6 on i5-11400H)
+language: fa            # "auto" to detect the language
+beam_size: 5
+initial_prompt: ""      # a short Persian sentence with your domain vocabulary improves spelling
+condition_on_previous_text: false   # false reduces repetition/hallucination on long files
+offline: false          # true = never touch the network (sets HF_HUB_OFFLINE=1)
+
+vad:
+  enabled: true
+  min_silence_ms: 500
+
+audio:
+  sample_rate: 16000
+  denoise: false        # FFmpeg high-pass + noise reduction; helps noisy voice notes
+
+postprocess:
+  enabled: true
+  fix_arabic_chars: true    # ي -> ی, ك -> ک
+  remove_diacritics: true
+  digits: persian           # persian | latin | keep
+  half_space: true          # می رود -> می‌رود, کتاب ها -> کتاب‌ها
+  punctuation: true         # , -> ،   ? -> ؟   spacing around punctuation
+  use_hazm: false           # also run hazm's normalizer (pip install 'goftar[fa]')
+
+cache:
+  enabled: true
+  path: .cache/goftar.sqlite

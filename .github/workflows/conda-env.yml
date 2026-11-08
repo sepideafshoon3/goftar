@@ -1,0 +1,33 @@
+name: Conda env
+
+# Verifies that environment.yml still builds and the package works inside it.
+on:
+  pull_request:
+    paths: [environment.yml, pyproject.toml, ".github/workflows/conda-env.yml"]
+  push:
+    branches: [main]
+    paths: [environment.yml, pyproject.toml, ".github/workflows/conda-env.yml"]
+  schedule:
+    - cron: "0 6 * * 1"   # weekly: catches upstream dependency breakage
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  conda:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          environment-file: environment.yml
+          activate-environment: goftar
+          miniforge-version: latest
+          auto-activate-base: false
+      - run: goftar version
+      - run: goftar doctor || true   # no GPU/model on CI; just prints the report
+      - run: python -m pytest -q

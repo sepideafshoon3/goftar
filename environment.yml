@@ -1,0 +1,10 @@
+name: goftar
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - ffmpeg          # audio decoding / denoising
+  - pip
+  - pip:
+      # api + ui + hazm + dev tools. For NVIDIA GPUs run: ./scripts/setup.sh --gpu
+      - -e .[all]
