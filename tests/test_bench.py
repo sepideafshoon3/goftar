@@ -28,3 +28,26 @@ def test_benchmark_reports_engine_errors_instead_of_crashing(tmp_path, wav_file)
     results = run_benchmark(discover_samples(tmp_path), {"bad": Config(engine="nope")})
     assert results[0].error and "unknown engine" in results[0].error
     assert "error:" in render_markdown(results, n_samples=1)
+
+
+def test_render_details(tmp_path, wav_file):
+    from goftar.bench import render_details
+
+    (tmp_path / "voice.txt").write_text(
+        "سلام حال شما چطوره من سه تا کتاب ها می خرم", encoding="utf-8"
+    )
+    results = run_benchmark(discover_samples(tmp_path), {"fake-model": Config(engine="fake")})
+    report = render_details(results)
+    assert "## fake-model" in report
+    assert "| voice.wav |" in report
+    assert "Most frequent word errors" in report
+    assert "worst samples" in report
+    assert "reference: " in report
+    assert "personal data" in report
+
+
+def test_render_details_for_failed_model():
+    from goftar.bench import ModelResult, render_details
+
+    out = render_details([ModelResult("bad", "cuda", "int8", error="boom")])
+    assert "error: boom" in out

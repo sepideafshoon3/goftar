@@ -94,3 +94,23 @@ def test_dataset_workflow(tmp_path, wav_file):
 
 def test_dataset_status_empty_folder(tmp_path):
     assert runner.invoke(app, ["dataset", "status", str(tmp_path)]).exit_code == 1
+
+
+def test_bench_with_details(tmp_path, wav_file):
+    import shutil
+
+    folder = tmp_path / "ds"
+    folder.mkdir()
+    shutil.copy(wav_file, folder / "v1.wav")
+    (folder / "v1.txt").write_text("سلام حال شما چطوره", encoding="utf-8")
+    cfg = tmp_path / "fake.yaml"
+    cfg.write_text("engine: fake\n", encoding="utf-8")
+    out = tmp_path / "run.md"
+
+    result = runner.invoke(
+        app,
+        ["bench", str(folder), "--models", "m1", "-c", str(cfg), "--out", str(out), "--details"],
+    )
+    assert result.exit_code == 0, result.output
+    assert "| m1 |" in out.read_text(encoding="utf-8")
+    assert "Most frequent word errors" in (tmp_path / "run.details.md").read_text(encoding="utf-8")

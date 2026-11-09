@@ -28,6 +28,9 @@ bench/dataset/*
 !bench/dataset/.gitkeep
 !bench/dataset/README.md
 
+# Benchmark detail reports contain your transcript text
+bench/*.details.md
+
 # Loose voice files / transcripts in the repo root (real data goes in bench/dataset/)
 /*.ogg
 /*.oga

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import difflib
 import re
 from collections.abc import Sequence
 
@@ -44,3 +45,14 @@ def cer(reference: str, hypothesis: str) -> float:
     if not ref:
         return 0.0 if not hyp else 1.0
     return edit_distance(ref, hyp) / len(ref)
+
+
+def word_errors(reference: str, hypothesis: str) -> list[tuple[str, str]]:
+    """Word-level differences as (reference words, heard words); '' means nothing on that side."""
+    ref, hyp = tokenize(reference), tokenize(hypothesis)
+    matcher = difflib.SequenceMatcher(a=ref, b=hyp, autojunk=False)
+    return [
+        (" ".join(ref[i1:i2]), " ".join(hyp[j1:j2]))
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes()
+        if tag != "equal"
+    ]

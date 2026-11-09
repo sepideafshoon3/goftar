@@ -9,13 +9,14 @@ from __future__ import annotations
 import gc
 import platform
 import time
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from goftar.audio.ingest import SUPPORTED_EXTENSIONS
 from goftar.core.config import Config
 from goftar.core.pipeline import Pipeline
-from goftar.metrics import cer, wer
+from goftar.metrics import cer, wer, word_errors
 
 
 @dataclass
@@ -31,6 +32,8 @@ class SampleResult:
     processing_time: float
     wer: float
     cer: float
+    reference: str = ""
+    hypothesis: str = ""
 
 
 @dataclass
@@ -99,6 +102,8 @@ def run_benchmark(samples: list[Sample], configs: dict[str, Config]) -> list[Mod
                         processing_time=tr.processing_time or 0.0,
                         wer=wer(sample.reference, tr.text),
                         cer=cer(sample.reference, tr.text),
+                        reference=sample.reference,
+                        hypothesis=tr.text,
                     )
                 )
             result.rss_mb = _rss_mb()
@@ -115,7 +120,7 @@ def render_markdown(results: list[ModelResult], *, n_samples: int) -> str:
         "# Benchmark results",
         "",
         f"- Machine: {platform.platform()} / {platform.processor() or platform.machine()}",
-        f"- Samples: {n_samples} (reference transcripts typed by hand)",
+        f"- Samples: {n_samples} (hand-checked reference transcripts)",
         "- WER/CER computed after Persian normalisation (punctuation and half-space ignored)",
         "- RTF = processing time / audio duration (lower is faster; < 1 is faster than real time)",
         "",
@@ -131,4 +136,54 @@ def render_markdown(results: list[ModelResult], *, n_samples: int) -> str:
             f"| {r.label} | {r.device} | {r.compute_type} | {r.mean_wer:.1%} | {r.mean_cer:.1%} "
             f"| {r.rtf:.2f} | {r.load_time:.1f} | {ram} |"
         )
+    return "\n".join(lines) + "\n"
+
+
+NOTHING = "-"
+
+
+def render_details(results: list[ModelResult], *, top: int = 25, worst: int = 3) -> str:
+    """Per-file scores, the most frequent word errors and the worst samples, per model.
+
+    This contains transcript text from your own recordings: keep it local, do not commit it.
+    """
+    lines = [
+        "# Benchmark details",
+        "",
+        "> Contains text from your recordings (personal data). Keep it local, do not commit.",
+        "",
+    ]
+    for r in results:
+        lines += [f"## {r.label} ({r.device}, {r.compute_type})", ""]
+        if r.error:
+            lines += [f"error: {r.error}", ""]
+            continue
+
+        lines += ["| File | Audio (s) | WER | CER |", "|---|---|---|---|"]
+        ranked = sorted(r.samples, key=lambda s: s.wer, reverse=True)
+        for s in ranked:
+            lines.append(f"| {s.name} | {s.duration:.0f} | {s.wer:.1%} | {s.cer:.1%} |")
+
+        errors: Counter[tuple[str, str]] = Counter()
+        for s in r.samples:
+            errors.update(word_errors(s.reference, s.hypothesis))
+        lines += [
+            "",
+            "### Most frequent word errors",
+            "",
+            "| Count | Reference | Heard |",
+            "|---|---|---|",
+        ]
+        for (ref, heard), count in errors.most_common(top):
+            lines.append(f"| {count} | {ref or NOTHING} | {heard or NOTHING} |")
+
+        lines += ["", f"### {min(worst, len(ranked))} worst samples", ""]
+        for s in ranked[:worst]:
+            lines += [
+                f"**{s.name}** (WER {s.wer:.1%})",
+                "",
+                f"- reference: {s.reference}",
+                f"- heard: {s.hypothesis}",
+                "",
+            ]
     return "\n".join(lines) + "\n"

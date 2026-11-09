@@ -38,3 +38,8 @@ and be extra careful with words the model got "plausibly" wrong.
 ```bash
 goftar bench bench/dataset --models small,medium --device cuda --compute-type int8_float16
 ```
+
+Add `--details --out bench/my-run.md` to also get `bench/my-run.details.md`: per-file scores,
+the most frequent word errors (reference -> heard) and the worst samples. Use it to see *what*
+the model gets wrong (English words, names, informal forms) before changing anything.
+That file contains your transcript text, so it is git-ignored.
