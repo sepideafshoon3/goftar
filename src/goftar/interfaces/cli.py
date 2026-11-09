@@ -202,6 +202,26 @@ def ui(
     build_ui(Pipeline(cfg)).launch(server_name=host, server_port=port)
 
 
+@app.command("fix-text")
+def fix_text(
+    text: Annotated[str, typer.Argument(help="Persian text to clean.")],
+    config: ConfigOpt = None,
+    spelling: Annotated[
+        bool, typer.Option("--spelling", help="Also fix homophone-letter typos.")
+    ] = False,
+) -> None:
+    """Run the text clean-up (normalisation, glossary, optional spelling) on a string."""
+    from goftar.text.normalize import clean_text
+
+    cfg = _build_config(config)
+    if spelling:
+        cfg.postprocess.spelling = True
+    try:
+        typer.echo(clean_text(text, cfg.postprocess))
+    except ConfigError as exc:
+        raise _fail(f"config error: {exc}", 2) from exc
+
+
 @app.command()
 def doctor(config: ConfigOpt = None) -> None:
     """Check ffmpeg, GPU, models and optional extras."""

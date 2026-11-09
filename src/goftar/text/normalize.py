@@ -93,13 +93,24 @@ def normalize_text(text: str, opts: PostprocessConfig | None = None) -> str:
     return text.strip()
 
 
+def clean_text(text: str, opts: PostprocessConfig | None = None) -> str:
+    """normalize_text, then the optional spelling / glossary stage."""
+    opts = opts or PostprocessConfig()
+    text = normalize_text(text, opts)
+    if opts.enabled and text and (opts.spelling or opts.glossary):
+        from goftar.text.spelling import get_fixer
+
+        text = get_fixer(opts.spelling, opts.wordlist, opts.glossary).fix(text)
+    return text
+
+
 def postprocess_transcript(transcript: Transcript, opts: PostprocessConfig) -> Transcript:
     """Return a copy of the transcript with every segment normalised (empty ones dropped)."""
     if not opts.enabled:
         return transcript
     segments = []
     for seg in transcript.segments:
-        text = normalize_text(seg.text, opts)
+        text = clean_text(seg.text, opts)
         if text:
             segments.append(replace(seg, text=text))
     return replace(transcript, segments=segments)

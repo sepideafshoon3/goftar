@@ -15,6 +15,7 @@ from typing import Any
 import yaml
 
 from goftar.errors import ConfigError
+from goftar.text.spelling import file_digest
 
 DEVICES = {"auto", "cpu", "cuda"}
 DIGIT_MODES = {"persian", "latin", "keep"}
@@ -41,6 +42,9 @@ class PostprocessConfig:
     half_space: bool = True
     punctuation: bool = True
     use_hazm: bool = False
+    spelling: bool = False  # fix homophone-letter typos (needs `wordlist` or hazm)
+    wordlist: str = ""  # path: one word per line, optional count; "" = hazm's list
+    glossary: str = ""  # path to a YAML mapping: wrong spelling -> right spelling
 
     def __post_init__(self) -> None:
         if self.digits not in DIGIT_MODES:
@@ -88,6 +92,10 @@ class Config:
         """Hash of every setting that can change the transcript (used for cache keys)."""
         ignored = {"cache", "models_dir", "cpu_threads", "offline"}
         payload = {k: v for k, v in self.to_dict().items() if k not in ignored}
+        post = payload["postprocess"]
+        for key in ("wordlist", "glossary"):
+            if post.get(key):
+                post[key + "_digest"] = file_digest(post[key])
         blob = json.dumps(payload, sort_keys=True, ensure_ascii=False)
         return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
 

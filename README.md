@@ -70,6 +70,13 @@ See [docs/architecture.md](docs/architecture.md) and the decision records in [do
 Copy [`config/default.yaml`](config/default.yaml) to `goftar.yaml` (or use `--config`). Unknown keys
 are rejected, so typos fail loudly. CLI flags override the file.
 
+## Text conventions and optional spelling stage
+
+- Foreign (English) words are written in Persian script: `گیت‌هاب`, not `GitHub`.
+- Colloquial speech is kept as spoken (`میخوام`, `نمیدونم`), not rewritten as formal text.
+- Scoring (v2) ignores spacing around `ها / تر / ی / می`, so `کتاب ها`, `کتابها` and `کتاب‌ها` count as the same word.
+- Optional, off by default: `postprocess.spelling` fixes homophone-letter typos (ز/ذ/ض/ظ, س/ص/ث ...) using a word list, and `postprocess.glossary` applies your own mapping (see `config/glossary.example.yaml`). Try it with `goftar fix-text "..." --spelling` and keep it only if `goftar bench` improves on a held-out set.
+
 ## REST API
 
 | Endpoint | Purpose |

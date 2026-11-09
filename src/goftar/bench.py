@@ -121,7 +121,8 @@ def render_markdown(results: list[ModelResult], *, n_samples: int) -> str:
         "",
         f"- Machine: {platform.platform()} / {platform.processor() or platform.machine()}",
         f"- Samples: {n_samples} (hand-checked reference transcripts)",
-        "- WER/CER computed after Persian normalisation (punctuation and half-space ignored)",
+        "- WER/CER (scoring v2) after Persian normalisation: punctuation ignored, spacing around "
+        "ها/تر/ی/می affixes ignored",
         "- RTF = processing time / audio duration (lower is faster; < 1 is faster than real time)",
         "",
         "| Model | Device | Compute | WER | CER | RTF | Load (s) | RAM (MB) |",

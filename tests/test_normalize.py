@@ -78,3 +78,18 @@ def test_postprocess_transcript_drops_empty_segments():
     out = postprocess_transcript(t, PostprocessConfig())
     assert [s.text for s in out.segments] == ["کتاب"]
     assert out.duration == 2
+
+
+def test_clean_text_is_plain_normalisation_by_default():
+    from goftar.text.normalize import clean_text, normalize_text
+
+    assert clean_text("می رود ,", None) == normalize_text("می رود ,")
+
+
+def test_clean_text_applies_glossary(tmp_path):
+    from goftar.core.config import PostprocessConfig
+    from goftar.text.normalize import clean_text
+
+    g = tmp_path / "g.yaml"
+    g.write_text("ویب: وب\n", encoding="utf-8")
+    assert clean_text("ویب سایت و ویب", PostprocessConfig(glossary=str(g))) == "وب سایت و وب"

@@ -28,6 +28,9 @@ postprocess:
   digits: persian           # persian | latin | keep
   half_space: true          # می رود -> می‌رود, کتاب ها -> کتاب‌ها
   punctuation: true         # , -> ،   ? -> ؟   spacing around punctuation
+  spelling: false           # fix homophone-letter typos (ز/ذ/ض/ظ, س/ص/ث, ...) with a word list
+  wordlist: ""              # file: one word per line (+ optional count); "" = hazm's list
+  glossary: ""              # YAML file: wrong spelling -> right spelling (see glossary.example.yaml)
   use_hazm: false           # also run hazm's normalizer (pip install 'goftar[fa]')
 
 cache:

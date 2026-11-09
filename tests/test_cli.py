@@ -114,3 +114,13 @@ def test_bench_with_details(tmp_path, wav_file):
     assert result.exit_code == 0, result.output
     assert "| m1 |" in out.read_text(encoding="utf-8")
     assert "Most frequent word errors" in (tmp_path / "run.details.md").read_text(encoding="utf-8")
+
+
+def test_fix_text_normalises_and_applies_glossary(tmp_path):
+    g = tmp_path / "g.yaml"
+    g.write_text("ویب: وب\n", encoding="utf-8")
+    cfg = tmp_path / "c.yaml"
+    cfg.write_text(f"postprocess:\n  glossary: {g}\n", encoding="utf-8")
+    result = runner.invoke(app, ["fix-text", "ویب , خوب", "-c", str(cfg)])
+    assert result.exit_code == 0, result.output
+    assert result.stdout.strip() == "وب، خوب"
