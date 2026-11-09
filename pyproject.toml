@@ -25,6 +25,7 @@ classifiers = [
 dependencies = [
     "faster-whisper>=1.0.3",
     "pyyaml>=6.0",
+    "socksio>=1.0",  # HuggingFace downloads fail behind a SOCKS proxy without it
     "typer>=0.12",
 ]
 
