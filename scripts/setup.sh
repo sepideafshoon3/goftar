@@ -56,7 +56,7 @@ _goftar_libs="$(python - <<'PY' 2>/dev/null
 import os
 try:
     import nvidia.cublas.lib as a, nvidia.cudnn.lib as b
-    print(os.path.dirname(a.__file__) + ":" + os.path.dirname(b.__file__))
+    print(list(a.__path__)[0] + ":" + list(b.__path__)[0])
 except Exception:
     pass
 PY
