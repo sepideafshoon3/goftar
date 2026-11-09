@@ -21,6 +21,11 @@ app = typer.Typer(
 )
 models_app = typer.Typer(help="Manage local models.", no_args_is_help=True)
 app.add_typer(models_app, name="models")
+dataset_app = typer.Typer(
+    help="Build the benchmark dataset: draft transcripts to correct by hand.",
+    no_args_is_help=True,
+)
+app.add_typer(dataset_app, name="dataset")
 
 ConfigOpt = Annotated[
     Path | None, typer.Option("--config", "-c", help="YAML config (default: ./goftar.yaml).")
@@ -287,6 +292,90 @@ def models_list(
     for p in found:
         size_mb = sum(f.stat().st_size for f in p.rglob("*") if f.is_file()) / 1e6
         typer.echo(f"{p.name}\t{size_mb:.0f} MB")
+
+
+@dataset_app.command("prepare")
+def dataset_prepare(
+    folder: Annotated[Path, typer.Argument(exists=True, file_okay=False, help="Dataset folder.")],
+    overwrite: Annotated[
+        bool, typer.Option("--overwrite", help="Regenerate existing drafts (never references).")
+    ] = False,
+    config: ConfigOpt = None,
+    model: ModelOpt = None,
+    device: DeviceOpt = None,
+    compute_type: ComputeOpt = None,
+    language: LanguageOpt = None,
+    offline: OfflineOpt = False,
+    engine: Annotated[str | None, typer.Option("--engine", hidden=True)] = None,
+    verbose: VerboseOpt = False,
+) -> None:
+    """Write <name>.draft.txt next to each audio file that has no reference yet."""
+    _setup_logging(verbose)
+    from goftar.dataset import FAILED, WRITTEN, prepare_drafts
+
+    cfg = _build_config(
+        config,
+        model=model,
+        device=device,
+        compute_type=compute_type,
+        language=language,
+        offline=offline,
+        no_cache=True,
+        engine=engine,
+    )
+    outcomes = prepare_drafts(Pipeline(cfg), folder, overwrite=overwrite)
+    for o in outcomes:
+        detail = f" ({o.detail})" if o.detail else ""
+        typer.echo(f"{o.status:14} {o.audio.name}{detail}")
+    written = sum(o.status == WRITTEN for o in outcomes)
+    typer.echo(
+        f"\n{written} draft(s) written. Listen, correct EVERY word, then run:\n"
+        f"  goftar dataset accept {folder}/<audio-file> ...",
+        err=True,
+    )
+    if any(o.status == FAILED for o in outcomes):
+        raise typer.Exit(1)
+
+
+@dataset_app.command("status")
+def dataset_status(
+    folder: Annotated[Path, typer.Argument(exists=True, file_okay=False, help="Dataset folder.")],
+) -> None:
+    """Show which audio files are ready, awaiting review, or still missing a transcript."""
+    from goftar.dataset import DRAFT, MISSING, READY, list_entries
+
+    entries = list_entries(folder)
+    if not entries:
+        raise _fail(f"no audio files in {folder}")
+    marks = {READY: "ok   ", DRAFT: "review", MISSING: "todo "}
+    for e in entries:
+        typer.echo(f"[{marks[e.state]}] {e.audio.name}")
+    counts = {s: sum(e.state == s for e in entries) for s in (READY, DRAFT, MISSING)}
+    typer.echo(
+        f"\n{counts[READY]} ready, {counts[DRAFT]} awaiting review, {counts[MISSING]} without text"
+        f"  (benchmark uses the {counts[READY]} ready ones)"
+    )
+
+
+@dataset_app.command("accept")
+def dataset_accept(
+    audio: Annotated[list[Path], typer.Argument(help="Audio file(s) whose draft you corrected.")],
+    force: Annotated[bool, typer.Option("--force", help="Replace an existing reference.")] = False,
+) -> None:
+    """Turn corrected drafts into references (<name>.draft.txt -> <name>.txt)."""
+    from goftar.dataset import accept_draft
+
+    failed = False
+    for path in audio:
+        try:
+            ref = accept_draft(path, force=force)
+        except (FileNotFoundError, FileExistsError) as exc:
+            failed = True
+            typer.secho(f"skipped {path.name}: {exc}", fg=typer.colors.RED, err=True)
+            continue
+        typer.echo(f"accepted {ref.name}")
+    if failed:
+        raise typer.Exit(1)
 
 
 if __name__ == "__main__":

@@ -64,3 +64,33 @@ def test_models_list_empty(tmp_path):
     result = runner.invoke(app, ["models", "list", "--models-dir", str(tmp_path)])
     assert result.exit_code == 0
     assert "no models" in result.output
+
+
+def test_dataset_workflow(tmp_path, wav_file):
+    import shutil
+
+    folder = tmp_path / "ds"
+    folder.mkdir()
+    audio = folder / "v1.wav"
+    shutil.copy(wav_file, audio)
+
+    status = runner.invoke(app, ["dataset", "status", str(folder)])
+    assert status.exit_code == 0
+    assert "[todo ] v1.wav" in status.output
+
+    prep = runner.invoke(app, ["dataset", "prepare", str(folder), "--engine", "fake"])
+    assert prep.exit_code == 0, prep.output
+    assert (folder / "v1.draft.txt").exists()
+    assert "[review] v1.wav" in runner.invoke(app, ["dataset", "status", str(folder)]).output
+
+    accepted = runner.invoke(app, ["dataset", "accept", str(audio)])
+    assert accepted.exit_code == 0, accepted.output
+    assert (folder / "v1.txt").exists()
+    assert "[ok   ] v1.wav" in runner.invoke(app, ["dataset", "status", str(folder)]).output
+
+    again = runner.invoke(app, ["dataset", "accept", str(audio)])
+    assert again.exit_code == 1
+
+
+def test_dataset_status_empty_folder(tmp_path):
+    assert runner.invoke(app, ["dataset", "status", str(tmp_path)]).exit_code == 1
