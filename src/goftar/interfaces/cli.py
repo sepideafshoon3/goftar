@@ -227,6 +227,15 @@ def bench(
     dataset: Annotated[Path, typer.Argument(help="Folder with audio + same-name .txt references.")],
     models: Annotated[str, typer.Option(help="Comma-separated model names.")] = "small",
     out: Annotated[Path, typer.Option(help="Markdown report path.")] = Path("bench/results.md"),
+    details: Annotated[
+        bool,
+        typer.Option(
+            "--details",
+            help="Also write <out>.details.md: per-file scores, frequent errors, worst samples. "
+            "Contains your transcript text, so it is git-ignored.",
+        ),
+    ] = False,
+    top: Annotated[int, typer.Option(help="Rows in the frequent-errors table of --details.")] = 25,
     config: ConfigOpt = None,
     device: DeviceOpt = None,
     compute_type: ComputeOpt = None,
@@ -234,7 +243,7 @@ def bench(
 ) -> None:
     """Benchmark models on your own labelled audio (WER, CER, speed, RAM)."""
     _setup_logging(verbose)
-    from goftar.bench import discover_samples, render_markdown, run_benchmark
+    from goftar.bench import discover_samples, render_details, render_markdown, run_benchmark
 
     samples = discover_samples(dataset)
     if not samples:
@@ -245,11 +254,16 @@ def bench(
         for name in models.split(",")
         if name.strip()
     }  # fmt: skip
-    report = render_markdown(run_benchmark(samples, configs), n_samples=len(samples))
+    results = run_benchmark(samples, configs)
+    report = render_markdown(results, n_samples=len(samples))
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(report, encoding="utf-8")
     typer.echo(report)
     typer.echo(f"saved to {out}", err=True)
+    if details:
+        details_path = out.with_suffix(".details.md")
+        details_path.write_text(render_details(results, top=top), encoding="utf-8")
+        typer.echo(f"details saved to {details_path} (personal data, git-ignored)", err=True)
 
 
 @models_app.command("download")
