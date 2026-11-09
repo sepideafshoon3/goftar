@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import difflib
 import re
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 from goftar.core.config import PostprocessConfig
 from goftar.text.normalize import ZWNJ, normalize_text
@@ -44,3 +46,28 @@ def cer(reference: str, hypothesis: str) -> float:
     if not ref:
         return 0.0 if not hyp else 1.0
     return edit_distance(ref, hyp) / len(ref)
+
+
+@dataclass(frozen=True)
+class ErrorSpan:
+    """A run of wrong words; start/end index the reference words (start == end: insertion)."""
+
+    start: int
+    end: int
+    reference: str
+    heard: str
+
+
+def error_spans(reference: str, hypothesis: str) -> list[ErrorSpan]:
+    ref, hyp = tokenize(reference), tokenize(hypothesis)
+    matcher = difflib.SequenceMatcher(a=ref, b=hyp, autojunk=False)
+    return [
+        ErrorSpan(i1, i2, " ".join(ref[i1:i2]), " ".join(hyp[j1:j2]))
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes()
+        if tag != "equal"
+    ]
+
+
+def word_errors(reference: str, hypothesis: str) -> list[tuple[str, str]]:
+    """Word-level differences as (reference words, heard words); '' means nothing on that side."""
+    return [(e.reference, e.heard) for e in error_spans(reference, hypothesis)]
