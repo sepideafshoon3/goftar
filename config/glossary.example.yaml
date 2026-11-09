@@ -1,0 +1,6 @@
+# Personal glossary: wrong spelling (what the model writes) -> right spelling (what you want).
+# Whole words only. Foreign words are written in Persian script; speech stays colloquial.
+# Copy to glossary.yaml and set postprocess.glossary: glossary.yaml in goftar.yaml.
+ویب: وب
+گیت هاب: گیت‌هاب
+کانتینر: کانتینر

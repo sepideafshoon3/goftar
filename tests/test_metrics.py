@@ -17,7 +17,7 @@ def test_tokenize_ignores_punctuation_digits_style_and_half_space():
 
 def test_wer():
     assert wer("من کتاب می خوانم", "من کتاب می خوانم") == 0.0
-    assert wer("من کتاب می خوانم", "من کتاب خوانم") == pytest.approx(0.25)
+    assert wer("من کتاب می خوانم", "من کتاب خوانم") == pytest.approx(1 / 3)
     assert wer("a b", "c d") == 1.0
 
 
@@ -35,7 +35,7 @@ def test_word_errors():
     from goftar.metrics import word_errors
 
     assert word_errors("من کتاب می خوانم", "من کتاب می خوانم") == []
-    assert word_errors("من کتاب می خوانم", "من کتاب خوانم") == [("می", "")]
+    assert word_errors("من کتاب می خوانم", "من کتاب خوانم") == [("میخوانم", "خوانم")]
     assert word_errors("من کتاب خوانم", "من یک کتاب خوانم") == [("", "یک")]
     assert word_errors("اسم پروژه وب", "اسم پروژه ویب") == [("وب", "ویب")]
 
@@ -52,3 +52,17 @@ def test_error_spans_indices():
     spans = error_spans("یک دو سه چهار پنج", "یک تو سه چهار")
     assert spans == [ErrorSpan(1, 2, "دو", "تو"), ErrorSpan(4, 5, "پنج", "")]
     assert error_spans("یک دو", "یک دو") == []
+
+
+def test_tokenize_ignores_spacing_around_affixes():
+    assert tokenize("کتاب ها") == tokenize("کتابها") == tokenize("کتاب‌ها") == ["کتابها"]
+    assert tokenize("می رود") == tokenize("میرود") == ["میرود"]
+    assert tokenize("نمی دانم") == tokenize("نمیدانم")
+    assert tokenize("بزرگ تر") == tokenize("بزرگتر")
+    assert tokenize("خانه ی من") == tokenize("خانهی من")
+
+
+def test_tokenize_keeps_separate_words_apart():
+    assert tokenize("من می") == ["من", "می"]
+    assert tokenize("تر") == ["تر"]
+    assert wer("کتاب ها", "کتاب") == 1.0

@@ -14,10 +14,33 @@ _NON_WORD = re.compile(r"[^\w\s]")
 _SCORING_OPTS = PostprocessConfig(digits="persian", punctuation=False, half_space=False)
 
 
+# Persian writers disagree on spacing ("کتاب ها" / "کتابها" / "کتاب‌ها", "می رود" / "میرود"),
+# and that is not a recognition error. Affixes are glued to their word before comparing.
+_SUFFIX_TOKENS = frozenset({"ها", "های", "هایی", "تر", "ترین", "ی"})
+_PREFIX_TOKENS = frozenset({"می", "نمی"})
+
+
+def _join_affixes(tokens: list[str]) -> list[str]:
+    out: list[str] = []
+    pending = ""
+    for tok in tokens:
+        if tok in _PREFIX_TOKENS:
+            pending += tok
+            continue
+        tok, pending = pending + tok, ""
+        if tok in _SUFFIX_TOKENS and out:
+            out[-1] += tok
+        else:
+            out.append(tok)
+    if pending:
+        out.append(pending)
+    return out
+
+
 def tokenize(text: str) -> list[str]:
-    """Normalise, drop punctuation, treat half-space like a space, split into words."""
+    """Normalise, drop punctuation, ignore spacing around affixes, split into words."""
     text = normalize_text(text, _SCORING_OPTS).replace(ZWNJ, " ")
-    return _NON_WORD.sub(" ", text).lower().split()
+    return _join_affixes(_NON_WORD.sub(" ", text).lower().split())
 
 
 def edit_distance(a: Sequence, b: Sequence) -> int:

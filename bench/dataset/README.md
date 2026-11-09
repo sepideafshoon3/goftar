@@ -33,6 +33,13 @@ Drafts are named `*.draft.txt` so an unchecked draft can never be mistaken for a
 (and similar ones) look better than it is. Draft with your strongest model, fix every word,
 and be extra careful with words the model got "plausibly" wrong.
 
+## Reference conventions
+
+- Write English/foreign words in Persian script (`گیت‌هاب`, `فریم‌ورک`).
+- Write colloquial speech as spoken (`میخوام`, `نمیدونم`).
+- Fix only clear typos in a reference, and fix them in every file at once.
+- Keep a few recordings out of tuning (a held-out set) and score them only at the end.
+
 ## Run the benchmark
 
 ```bash
