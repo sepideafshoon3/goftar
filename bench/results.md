@@ -7,4 +7,4 @@
 
 | Model | Device | Compute | WER | CER | RTF | Load (s) | RAM (MB) |
 |---|---|---|---|---|---|---|---|
-| large-v3-turbo | cuda | int8_float16 | 19.5% | 7.0% | 0.09 | 7.0 | 1504 |
+| large-v3-turbo | cuda | int8_float16 | 19.8% | 7.0% | 0.08 | 7.3 | 1504 |

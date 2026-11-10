@@ -17,7 +17,7 @@ Persian recordings with hand-checked references (`bench/dataset`, `goftar bench`
 With scoring v2 (affix spacing ignored), large-v3-turbo scores **19.6% WER / 7.9% CER**.
 After fixing clear typos in the references and writing English words in Persian script, as
 `bench/dataset/README.md` requires, it scores **19.5% WER / 7.0% CER**. That is the current
-baseline in `bench/results.md`.
+baseline in `bench/results.md` (a re-run gave 19.8% WER / 7.0% CER).
 
 ## Decision
 
@@ -30,6 +30,21 @@ The `--details` shared-error analysis showed that about half of the remaining er
 made by every model: spelling variants, word spacing, English words, and typos in the
 references themselves. A larger model cannot fix those. They belong to the text stage
 (normalisation, glossary, optional spelling) and to cleaner references.
+
+## Alternative evaluated: Persian fine-tune
+
+`AmirMohseni/whisper-large-v3-persian-ct2-int8` (a Persian fine-tune of large-v3, CTranslate2
+int8) on the same 20 files with scoring v2 (`bench/results-amirmohseni.md`):
+
+| Model | WER (v2) | CER (v2) | RTF | RAM (MB) |
+|---|---|---|---|---|
+| large-v3-turbo | 19.5% | 7.0% | 0.08 | 1504 |
+| AmirMohseni fine-tune | 18.2% | 6.4% | 0.20 | 954 |
+
+It wins on 16 of 20 files but breaks down on one (67.7% WER vs 22.6% for turbo), which looks
+like a dropped or hallucinated segment. Not adopted for now: the gain is about 1.3 points on a
+small set, it is about 2.5x slower, and the one failure is the kind that hurts most on long
+recordings. Re-test it against turbo on the held-out set before changing the default.
 
 ## Consequences
 
