@@ -2,10 +2,10 @@
 # Unknown keys are rejected, so typos fail loudly.
 
 engine: faster_whisper
-model: small            # tiny | base | small | medium | large-v3 | path to a CTranslate2 model dir
+model: large-v3-turbo   # tiny | base | small | medium | large-v3 | large-v3-turbo | CTranslate2 model dir
 models_dir: models      # `goftar models download <name>` saves models here
-device: auto            # auto | cpu | cuda
-compute_type: auto      # CPU: int8 | GPU (4 GB VRAM): int8_float16 | GPU: float16
+device: auto            # auto (GPU if found, else CPU) | cpu | cuda
+compute_type: auto      # auto = int8_float16 on GPU, int8 on CPU | float16 (GPU 8 GB+)
 cpu_threads: 0          # 0 = library default; physical core count is a good value (6 on i5-11400H)
 language: fa            # "auto" to detect the language
 beam_size: 5

@@ -18,6 +18,9 @@ from goftar.errors import ConfigError
 from goftar.text.spelling import file_digest
 
 DEVICES = {"auto", "cpu", "cuda"}
+DEFAULT_MODEL = "large-v3-turbo"  # ADR 3: best speed/accuracy on a 4 GB GPU
+# What compute_type "auto" means per resolved device (ADR 3).
+AUTO_COMPUTE_TYPE = {"cuda": "int8_float16", "cpu": "int8"}
 DIGIT_MODES = {"persian", "latin", "keep"}
 
 
@@ -60,10 +63,10 @@ class CacheConfig:
 @dataclass
 class Config:
     engine: str = "faster_whisper"
-    model: str = "small"  # model name, or path to a local CTranslate2 model directory
+    model: str = DEFAULT_MODEL  # model name, or path to a local CTranslate2 model directory
     models_dir: str = "models"
     device: str = "auto"  # auto | cpu | cuda
-    compute_type: str = "auto"  # e.g. int8, int8_float16, float16
+    compute_type: str = "auto"  # auto: int8_float16 on GPU, int8 on CPU (see ADR 3)
     cpu_threads: int = 0  # 0 = library default
     language: str = "fa"  # "auto" to detect
     beam_size: int = 5
