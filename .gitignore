@@ -45,3 +45,4 @@ bench/*.details.md
 .vscode/
 .idea/
 .DS_Store
+bench/heldout/*
