@@ -46,6 +46,19 @@ like a dropped or hallucinated segment. Not adopted for now: the gain is about 1
 small set, it is about 2.5x slower, and the one failure is the kind that hurts most on long
 recordings. Re-test it against turbo on the held-out set before changing the default.
 
+## Held-out check
+
+Same model and settings on 8 held-out clips (`bench/results-heldout.md`):
+
+| Set | Samples | WER (v2) | CER (v2) | RTF |
+|---|---|---|---|---|
+| Main | 20 | 19.8% | 7.0% | 0.08 |
+| Held-out | 8 | 26.5% | 13.8% | 0.10 |
+
+The gap is mostly one file: an 11 s clip scores 74% WER, while the other seven range from 3% to
+29%. Colloquial speech and short clips hurt most. With 8 samples this is a rough check, not a
+confirmation. The fine-tune above has not yet been re-tested on this set.
+
 ## Consequences
 
 - About as accurate as `medium`, but roughly 2x faster and well below real time on the GPU.
@@ -53,5 +66,5 @@ recordings. Re-test it against turbo on the held-out set before changing the def
 - The model mixes scripts for English words: sometimes Persian (`پایثان`), sometimes Latin
   (`mlp`). A glossary or transliteration step is the next lever, not a bigger model.
 - `small` is not good enough for Persian (52% WER) and stays only as a quick test model.
-- Open: these numbers come from 20 short clips by a few speakers. A held-out set and a long
-  (10+ minute) file still need to confirm them. Revisit this ADR if they disagree.
+- Open: the held-out set (8 clips) shows higher error than the main set, and a long (10+ minute)
+  file still needs to confirm the numbers. Revisit this ADR if they disagree.
