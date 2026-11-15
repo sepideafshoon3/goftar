@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from goftar.core.config import Config
+from goftar.core.config import AUTO_COMPUTE_TYPE, Config
 from goftar.core.types import Segment, Transcript
 from goftar.engines.base import ASREngine
 from goftar.errors import EngineError
@@ -19,6 +19,32 @@ log = logging.getLogger(__name__)
 def local_model_dir(name: str, models_dir: str | Path) -> Path:
     """Where a model called `name` lives under models_dir (repo ids use '--' for '/')."""
     return Path(models_dir).expanduser() / name.replace("/", "--")
+
+
+def cuda_available() -> bool:
+    try:
+        import ctranslate2
+    except ImportError:
+        return False
+    try:
+        return ctranslate2.get_cuda_device_count() > 0
+    except Exception:  # broken CUDA install: behave as if there is no GPU
+        log.debug("CUDA probe failed", exc_info=True)
+        return False
+
+
+def resolve_device(device: str, compute_type: str) -> tuple[str, str]:
+    """Turn "auto" into a concrete device and compute type (ADR 3).
+
+    auto device -> cuda if a GPU is visible, else cpu.
+    auto compute -> int8_float16 on cuda (fits large-v3-turbo in 4 GB VRAM), int8 on cpu.
+    Explicit values are passed through unchanged.
+    """
+    if device == "auto":
+        device = "cuda" if cuda_available() else "cpu"
+    if compute_type == "auto":
+        compute_type = AUTO_COMPUTE_TYPE.get(device, "auto")
+    return device, compute_type
 
 
 def download_model(name: str, models_dir: str | Path) -> Path:
@@ -67,11 +93,12 @@ class FasterWhisperEngine(ASREngine):
             ) from exc
         cfg = self.config
         source = self.resolve_model()
-        log.info("loading %s on %s (%s)", source, cfg.device, cfg.compute_type)
+        device, compute_type = resolve_device(cfg.device, cfg.compute_type)
+        log.info("loading %s on %s (%s)", source, device, compute_type)
         self._model = WhisperModel(
             source,
-            device=cfg.device,
-            compute_type=cfg.compute_type,
+            device=device,
+            compute_type=compute_type,
             cpu_threads=cfg.cpu_threads,
         )
 

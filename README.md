@@ -22,7 +22,7 @@ git clone https://github.com/niktapournabi/goftar && cd goftar
 conda activate goftar
 
 goftar doctor                 # checks ffmpeg, GPU, models
-goftar models download small  # one-time download (needs internet)
+goftar models download large-v3-turbo  # one-time download (needs internet)
 goftar transcribe voice.ogg --offline -f txt,srt
 ```
 
@@ -30,13 +30,22 @@ goftar transcribe voice.ogg --offline -f txt,srt
 goftar transcribe ~/voices -r -o out/ -f txt,json   # whole folder, recursive
 goftar serve                                        # REST API on http://127.0.0.1:8000/docs
 goftar ui                                           # web UI on http://127.0.0.1:7860
-goftar bench bench/dataset --models small,medium    # WER / CER / RTF / RAM table
+goftar bench bench/dataset --models medium,large-v3-turbo   # WER / CER / RTF / RAM table
 ```
 
 ```python
 from goftar import Pipeline, Config
 
-result = Pipeline(Config(model="small", device="cpu")).transcribe("voice.ogg")
+result = Pipeline(Config()).transcribe("voice.ogg")  # large-v3-turbo, GPU if available
+print(result.text)
+```
+
+The default is `large-v3-turbo` (19.5% WER on our Persian set, faster than real time on a
+4 GB GPU). `device` and `compute_type` default to `auto`: `cuda` + `int8_float16` when a GPU
+is visible, otherwise `cpu` + `int8`.
+
+```python
+result = Pipeline(Config(model="medium", device="cpu")).transcribe("voice.ogg")
 print(result.text)
 ```
 
@@ -44,9 +53,10 @@ print(result.text)
 
 | Hardware | Model | `device` | `compute_type` |
 |---|---|---|---|
-| CPU only (6 cores) | `small` / `medium` | `cpu` | `int8` |
-| NVIDIA, 4 GB VRAM | `medium` | `cuda` | `int8_float16` |
-| NVIDIA, 8 GB+ VRAM | `large-v3` | `cuda` | `float16` |
+| NVIDIA, 4 GB VRAM (default) | `large-v3-turbo` | `cuda` | `int8_float16` |
+| NVIDIA, 8 GB+ VRAM | `large-v3-turbo` / `large-v3` | `cuda` | `float16` |
+| CPU only (6 cores) | `large-v3-turbo` (slow) / `medium` | `cpu` | `int8` |
+| Quick smoke test only | `small` (52% WER on Persian) | any | `auto` |
 
 Do not trust the table: run `goftar bench` on your own recordings and decide with numbers.
 Results from the maintainer's laptop are published in [`bench/results.md`](bench/results.md).

@@ -9,7 +9,7 @@ import typer
 
 from goftar import __version__
 from goftar.audio.ingest import collect_audio_files
-from goftar.core.config import Config, load_config
+from goftar.core.config import DEFAULT_MODEL, Config, load_config
 from goftar.core.pipeline import Pipeline
 from goftar.errors import ConfigError, GoftarError
 from goftar.export.formats import FORMATS, write_transcript
@@ -245,7 +245,7 @@ def doctor(config: ConfigOpt = None) -> None:
 @app.command()
 def bench(
     dataset: Annotated[Path, typer.Argument(help="Folder with audio + same-name .txt references.")],
-    models: Annotated[str, typer.Option(help="Comma-separated model names.")] = "small",
+    models: Annotated[str, typer.Option(help="Comma-separated model names.")] = DEFAULT_MODEL,
     out: Annotated[Path, typer.Option(help="Markdown report path.")] = Path("bench/results.md"),
     details: Annotated[
         bool,
@@ -289,8 +289,9 @@ def bench(
 @models_app.command("download")
 def models_download(
     name: Annotated[
-        str, typer.Argument(help="tiny, base, small, medium, large-v3, or HF repo id.")
-    ] = "small",
+        str,
+        typer.Argument(help="tiny, base, small, medium, large-v3, large-v3-turbo, or HF repo id."),
+    ] = DEFAULT_MODEL,
     models_dir: Annotated[
         Path | None, typer.Option(help="Default: models_dir from config.")
     ] = None,
@@ -321,7 +322,7 @@ def models_list(
         sorted(p for p in root.glob("*") if (p / "model.bin").is_file()) if root.is_dir() else []
     )
     if not found:
-        typer.echo(f"no models in {root} (try: goftar models download small)")
+        typer.echo(f"no models in {root} (try: goftar models download large-v3-turbo)")
         return
     for p in found:
         size_mb = sum(f.stat().st_size for f in p.rglob("*") if f.is_file()) / 1e6
