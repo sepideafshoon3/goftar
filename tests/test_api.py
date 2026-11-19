@@ -62,3 +62,11 @@ def test_job_lifecycle(client, wav_file):
 
 def test_unknown_job(client):
     assert client.get("/jobs/does-not-exist").status_code == 404
+
+
+def test_bad_upload_error_names_the_upload_not_a_temp_path(client):
+    response = client.post("/transcribe", files={"file": ("my voice.ogg", b"not audio" * 50)})
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert detail.startswith("could not decode my voice.ogg:")
+    assert "goftar-upload" not in detail and "/tmp" not in detail
