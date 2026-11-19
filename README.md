@@ -7,6 +7,12 @@
 Persian text, subtitles or JSON. Everything runs on your own machine: no cloud, no API keys,
 no data leaving the laptop.
 
+![Web UI: upload a 16-second Persian clip, press Transcribe, get right-to-left text](docs/demo.gif)
+
+<sub>Demo audio: 16 seconds of the spoken Persian Wikipedia article
+[«نوروز»](https://commons.wikimedia.org/wiki/File:Nowruz-fa.ogg), CC BY-SA 3.0. The text is
+the model's unedited output, mistakes included.</sub>
+
 - **Runs on an ordinary laptop**: a 74-minute podcast takes about 7 minutes on a 4 GB GPU, with
   under 2 GB of RAM.
 - **Persian-aware post-processing**: Arabic letter variants, digits, half-spaces (ZWNJ),
