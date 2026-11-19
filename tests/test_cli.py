@@ -124,3 +124,16 @@ def test_fix_text_normalises_and_applies_glossary(tmp_path):
     result = runner.invoke(app, ["fix-text", "ویب , خوب", "-c", str(cfg)])
     assert result.exit_code == 0, result.output
     assert result.stdout.strip() == "وب، خوب"
+
+
+def test_recursive_batch_keeps_same_named_files_apart(tmp_path, wav_file):
+    for day in ("day1", "day2"):
+        (tmp_path / day).mkdir()
+        (tmp_path / day / "voice.wav").write_bytes(wav_file.read_bytes())
+    out = tmp_path / "out"
+    result = runner.invoke(
+        app, ["transcribe", str(tmp_path), "-r", "--engine", "fake", "--no-cache", "-o", str(out)]
+    )
+    assert result.exit_code == 0, result.output
+    written = sorted(p.relative_to(out).as_posix() for p in out.rglob("*.txt"))
+    assert written == ["day1/voice.txt", "day2/voice.txt", "voice.txt"]
