@@ -137,3 +137,33 @@ def test_recursive_batch_keeps_same_named_files_apart(tmp_path, wav_file):
     assert result.exit_code == 0, result.output
     written = sorted(p.relative_to(out).as_posix() for p in out.rglob("*.txt"))
     assert written == ["day1/voice.txt", "day2/voice.txt", "voice.txt"]
+
+
+def test_engine_failure_stops_batch_with_one_message(tmp_path, wav_file):
+    from goftar.engines import register_engine
+    from tests.test_errors import BrokenEngine
+
+    register_engine("broken", BrokenEngine)
+    BrokenEngine.calls = 0
+    (tmp_path / "second.wav").write_bytes(wav_file.read_bytes())
+    result = runner.invoke(app, ["transcribe", str(tmp_path), "--engine", "broken", "--no-cache"])
+    assert result.exit_code == 1
+    assert "cannot transcribe: model 'small' not found" in result.output
+    assert "Traceback" not in result.output
+    assert BrokenEngine.calls == 1
+
+
+def test_silent_file_is_reported(tmp_path, wav_file):
+    from goftar.core.types import Transcript
+    from goftar.engines import register_engine
+    from tests.conftest import FakeEngine
+
+    class SilentEngine(FakeEngine):
+        def transcribe(self, audio_path):
+            return Transcript(segments=[], language="fa", duration=1.0, engine="silent")
+
+    register_engine("silent", SilentEngine)
+    result = runner.invoke(app, ["transcribe", str(wav_file), "--engine", "silent", "--no-cache",
+                                 "-o", str(tmp_path / "o")])  # fmt: skip
+    assert result.exit_code == 0, result.output
+    assert "(no speech found)" in result.output
