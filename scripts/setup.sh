@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# One-shot setup: conda env + git repo + commit/branch hooks + GitHub repo with protections.
+# One-shot setup: conda env + git repo + commit/branch hooks (+ GitHub repo, maintainers only).
 #
-#   ./scripts/setup.sh                 # env + hooks + public GitHub repo
+#   ./scripts/setup.sh                 # conda env + hooks (everything a user needs)
 #   ./scripts/setup.sh --gpu           # also install CUDA libs for NVIDIA GPUs
-#   ./scripts/setup.sh --private       # private GitHub repo (branch protection needs a paid plan)
-#   ./scripts/setup.sh --no-github     # local only
+#   ./scripts/setup.sh --github        # maintainer: create/configure the GitHub repo and push main
+#   ./scripts/setup.sh --github --private   # same, private repo (protection needs a paid plan)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -12,16 +12,17 @@ ENV_NAME="goftar"
 REPO_NAME="goftar"
 VISIBILITY="public"
 GPU=0
-GITHUB=1
+GITHUB=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --gpu) GPU=1 ;;
     --private) VISIBILITY="private" ;;
-    --no-github) GITHUB=0 ;;
+    --github) GITHUB=1 ;;
+    --no-github) GITHUB=0 ;;  # the default; kept so old commands still work
     --env) ENV_NAME="${2:?--env needs a name}"; shift ;;
     --repo) REPO_NAME="${2:?--repo needs a name}"; shift ;;
-    -h|--help) sed -n '2,8p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,7p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
   shift
@@ -74,10 +75,15 @@ if [[ ! -d .git ]]; then
   info "initialising git repository on 'main'"
   git init -b main
 fi
-git config user.name >/dev/null || die "set your identity first: git config --global user.name 'Your Name'"
-git config user.email >/dev/null || die "set your identity first: git config --global user.email you@example.com"
+need_identity() {
+  git config user.name >/dev/null || die "set your identity first: git config --global user.name 'Your Name'"
+  git config user.email >/dev/null || die "set your identity first: git config --global user.email you@example.com"
+}
+# Only committing needs an identity; a user who cloned the repo to transcribe does not.
+git config user.email >/dev/null || warn "git has no user.email: set one before committing"
 
 if ! git rev-parse --verify HEAD >/dev/null 2>&1; then
+  need_identity
   info "creating the initial commit (hooks are installed afterwards)"
   rm -f condaenv.*.requirements.txt   # stray file written by `conda env create`
   git add -A
@@ -91,7 +97,7 @@ git config commit.template .gitmessage
 
 # 4) GitHub ----------------------------------------------------------------------------------------
 if [[ "$GITHUB" == 1 ]]; then
-  command -v gh >/dev/null || die "GitHub CLI not found (https://cli.github.com). Re-run with --no-github to skip."
+  command -v gh >/dev/null || die "GitHub CLI not found (https://cli.github.com). Re-run without --github to skip."
   gh auth status >/dev/null 2>&1 || die "not logged in: run 'gh auth login' (grant the 'workflow' scope), then re-run."
 
   if ! git remote get-url origin >/dev/null 2>&1; then
@@ -137,6 +143,6 @@ cat <<EOF
 Done. Next steps:
   conda activate $ENV_NAME
   goftar doctor
-  goftar models download small
+  goftar models download large-v3-turbo
   git switch -c feat/my-first-change     # branch names are enforced by the hook
 EOF
