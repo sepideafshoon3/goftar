@@ -1,0 +1,9 @@
+# Config inside the container. /data/models and /data/cache are volumes, so the model
+# is downloaded once and transcripts stay cached across restarts.
+model: large-v3-turbo
+models_dir: /data/models
+device: auto
+compute_type: auto
+cache:
+  enabled: true
+  path: /data/cache/goftar.sqlite

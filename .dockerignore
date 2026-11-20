@@ -1,0 +1,10 @@
+# Allowlist: send only what the image needs. Everything else stays out of the build,
+# including recordings (bench/dataset, bench/heldout, *.m4a), models and caches.
+*
+!pyproject.toml
+!README.md
+!LICENSE
+!src/
+!docker/
+**/__pycache__
+**/*.py[cod]
