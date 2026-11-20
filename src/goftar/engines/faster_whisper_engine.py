@@ -50,6 +50,16 @@ def chunk_bounds(
     return bounds
 
 
+def segment_confidence(segment: Any) -> float | None:
+    """Mean word probability of a faster-whisper segment, else exp(avg_logprob)."""
+    words = getattr(segment, "words", None)
+    if words:
+        return sum(w.probability for w in words) / len(words)
+    if segment.avg_logprob is not None:
+        return math.exp(segment.avg_logprob)
+    return None
+
+
 def local_model_dir(name: str, models_dir: str | Path) -> Path:
     """Where a model called `name` lives under models_dir (repo ids use '--' for '/')."""
     return Path(models_dir).expanduser() / name.replace("/", "--")
@@ -145,6 +155,9 @@ class FasterWhisperEngine(ASREngine):
             "vad_filter": cfg.vad.enabled,
             "condition_on_previous_text": cfg.condition_on_previous_text,
             "initial_prompt": cfg.initial_prompt or None,
+            # Per-word probabilities give each segment its own confidence (avg_logprob is
+            # one value per 30-second window). Measured: same text, no extra time.
+            "word_timestamps": True,
         }
         if cfg.vad.enabled:
             kwargs["vad_parameters"] = {"min_silence_duration_ms": cfg.vad.min_silence_ms}
@@ -166,7 +179,7 @@ class FasterWhisperEngine(ASREngine):
                     start=offset + float(s.start),
                     end=offset + float(s.end),
                     text=s.text.strip(),
-                    confidence=math.exp(s.avg_logprob) if s.avg_logprob is not None else None,
+                    confidence=segment_confidence(s),
                 )
                 for s in segment_iter
             ]
