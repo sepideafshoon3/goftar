@@ -30,7 +30,7 @@ and run-to-run noise is about half a point. Read small differences as ties.
 | Whisper `small` | 52.0%¹ | | 0.05 | 0.9 GB | yes |
 | Whisper `medium` | 21.9%¹ | | 0.11 | 1.1 GB | yes |
 | **Whisper `large-v3-turbo`** | 19.8% | 26.9% | 0.09 | 1.5 GB | yes |
-| `large-v3-turbo`, CPU only | PLACEHOLDER_CPU_MAIN | PLACEHOLDER_CPU_HELD | PLACEHOLDER_CPU_RTF | PLACEHOLDER_CPU_RAM | yes |
+| `large-v3-turbo`, CPU only | 18.8% | 29.3% | 0.45 | 1.9 GB | yes |
 | MohammadGholizadeh turbo Persian fine-tune | 14.3% | **23.0%** | 0.09 | 0.8 GB | no |
 | givia turbo Persian fine-tune | **13.6%** | 27.1% | 0.09 | 0.8 GB | no |
 | AmirMohseni large-v3 Persian fine-tune | 15.8% | 37.1% | 0.20 | 1.0 GB | yes |
