@@ -13,8 +13,8 @@ no data leaving the laptop.
 [«نوروز»](https://commons.wikimedia.org/wiki/File:Nowruz-fa.ogg), CC BY-SA 3.0. The text is
 the model's unedited output, mistakes included.</sub>
 
-- **Runs on an ordinary laptop**: a 74-minute podcast takes about 7 minutes on a 4 GB GPU, with
-  under 2 GB of RAM.
+- **Runs on an ordinary laptop**: a 74-minute podcast takes under 5 minutes on a 4 GB GPU, with
+  about 2 GB of RAM.
 - **Persian-aware post-processing**: Arabic letter variants, digits, half-spaces (ZWNJ),
   number words to digits, punctuation.
 - **Four interfaces** on one core: CLI (batch), REST API (async jobs), web UI, Python library.
@@ -67,12 +67,15 @@ number. Machine: laptop with an RTX 2050 (4 GB), i5-11400H, 16 GB RAM.
 | Model | WER main (20 notes) | WER held-out (8 clips) | Speed (RTF) | RAM | Subtitle timing |
 |---|---|---|---|---|---|
 | **`large-v3-turbo`** (default) | 19.8% | 26.9% | 0.09 | 1.5 GB | yes |
-| `large-v3-turbo` on CPU only | PLACEHOLDER_CPU_MAIN | PLACEHOLDER_CPU_HELD | PLACEHOLDER_CPU_RTF | PLACEHOLDER_CPU_RAM | yes |
+| `large-v3-turbo` on CPU only | 18.8% | 29.3% | 0.45 | 1.9 GB | yes |
 | [MohammadGholizadeh/…-turbo-persian](https://huggingface.co/MohammadGholizadeh/whisper-large-v3-turbo-persian) | 14.3% | **23.0%** | 0.09 | 0.8 GB | no (30 s segments) |
 | [givia/…-turbo-persian](https://huggingface.co/givia/whisper-large-v3-turbo-persian) | **13.6%** | 27.1% | 0.09 | 0.8 GB | no (30 s segments) |
 | [AmirMohseni/…-large-v3-persian](https://huggingface.co/AmirMohseni/whisper-large-v3-persian-ct2-int8) | 15.8% | 37.1% | 0.20 | 1.0 GB | yes |
 
 - RTF = processing time / audio length: 0.09 means one minute of audio takes about 5 seconds.
+- CPU only (`int8`, 6 threads on the i5-11400H): one minute of audio takes about 27 seconds.
+  Its WER is 1 point better on the main set and 2.4 worse on the held-out set; with 8 held-out
+  clips, one file moves the mean by several points, so read both as ties.
 - With the older scoring (v1), `medium` scored 21.9% and `small` 52.0% on the main set.
 - Changing decoding settings (beam size, VAD, prompts) did not beat the defaults on both sets.
   An `initial_prompt` helped on the set it was written for and hurt on the held-out set.
