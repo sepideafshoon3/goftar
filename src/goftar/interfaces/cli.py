@@ -8,10 +8,10 @@ from typing import Annotated, Any
 import typer
 
 from goftar import __version__
-from goftar.audio.ingest import collect_audio_files
+from goftar.audio.ingest import collect_audio_files, output_stems
 from goftar.core.config import DEFAULT_MODEL, Config, load_config
 from goftar.core.pipeline import Pipeline
-from goftar.errors import ConfigError, GoftarError
+from goftar.errors import ConfigError, EngineError, GoftarError
 from goftar.export.formats import FORMATS, write_transcript
 
 app = typer.Typer(
@@ -121,6 +121,7 @@ def transcribe(
     files = collect_audio_files(paths, recursive=recursive)
     if not files:
         raise _fail("no supported audio files found")
+    plan = output_stems(files, paths, out_dir)
 
     cfg = _build_config(
         config,
@@ -135,16 +136,21 @@ def transcribe(
     pipeline = Pipeline(cfg)
 
     failures = 0
-    for audio, outcome in pipeline.transcribe_many(files):
-        if isinstance(outcome, Exception):
-            failures += 1
-            typer.secho(f"FAILED {audio}: {outcome}", fg=typer.colors.RED, err=True)
-            continue
-        dest = out_dir or audio.parent
-        written = write_transcript(outcome, dest, audio.stem, fmts)
-        typer.echo(f"{audio.name} -> {', '.join(p.name for p in written)}", err=True)
-        if stdout:
-            typer.echo(outcome.text)
+    try:
+        for audio, outcome in pipeline.transcribe_many(files):
+            if isinstance(outcome, Exception):
+                failures += 1
+                typer.secho(f"FAILED {audio}: {outcome}", fg=typer.colors.RED, err=True)
+                continue
+            dest, stem = plan[audio]
+            written = write_transcript(outcome, dest, stem, fmts)
+            shown = [str(p.relative_to(out_dir)) if out_dir else p.name for p in written]
+            note = "" if outcome.text.strip() else " (no speech found)"
+            typer.echo(f"{audio.name} -> {', '.join(shown)}{note}", err=True)
+            if stdout:
+                typer.echo(outcome.text)
+    except EngineError as exc:  # same failure for every file: stop with one message
+        raise _fail(f"cannot transcribe: {exc}") from exc
     if failures:
         raise _fail(f"{failures} of {len(files)} file(s) failed")
 
