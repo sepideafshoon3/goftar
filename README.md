@@ -7,7 +7,7 @@
 Persian text, subtitles or JSON. Everything runs on your own machine: no cloud, no API keys,
 no data leaving the laptop.
 
-![Web UI: upload a 16-second Persian clip, press Transcribe, get right-to-left text](docs/demo.gif)
+![Web UI: upload a 16-second Persian clip; it is transcribed right away into right-to-left text with timed segments and downloads](docs/demo.gif)
 
 <sub>Demo audio: 16 seconds of the spoken Persian Wikipedia article
 [«نوروز»](https://commons.wikimedia.org/wiki/File:Nowruz-fa.ogg), CC BY-SA 3.0. The text is
