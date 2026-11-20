@@ -15,6 +15,40 @@ from goftar.errors import EngineError
 
 log = logging.getLogger(__name__)
 
+SAMPLE_RATE = 16000
+# faster-whisper computes features for the whole input at once, so peak RAM grows with length
+# (~45 MB per minute: 5 GB for a 74-minute file). Long audio is fed in pieces of about this
+# size, cut at the quietest moment near each boundary; peak RAM then stays flat.
+CHUNK_SECONDS = 600
+SEARCH_SECONDS = 20  # look this far either side of a boundary for a quiet place to cut
+_FRAME_SECONDS = 0.1
+
+
+def chunk_bounds(
+    audio: Any, chunk_seconds: float | None = None, search_seconds: float | None = None
+) -> list[int]:
+    """Sample offsets [0, cut1, ..., len] that split `audio` into pieces of ~chunk_seconds.
+
+    Each cut is placed at the quietest 0.1 s frame within +-search_seconds of the target, so
+    it falls in a pause between words rather than inside one.
+    """
+    import numpy as np
+
+    chunk_seconds = CHUNK_SECONDS if chunk_seconds is None else chunk_seconds
+    search_seconds = SEARCH_SECONDS if search_seconds is None else search_seconds
+    total = len(audio)
+    chunk, search = int(chunk_seconds * SAMPLE_RATE), int(search_seconds * SAMPLE_RATE)
+    frame = int(_FRAME_SECONDS * SAMPLE_RATE)
+    bounds = [0]
+    while total - bounds[-1] > chunk + search:
+        lo, hi = bounds[-1] + chunk - search, bounds[-1] + chunk + search
+        window = np.asarray(audio[lo:hi], dtype=np.float32)
+        frames = window[: len(window) // frame * frame].reshape(-1, frame)
+        quietest = int(np.argmin((frames**2).mean(axis=1)))
+        bounds.append(lo + quietest * frame + frame // 2)
+    bounds.append(total)
+    return bounds
+
 
 def local_model_dir(name: str, models_dir: str | Path) -> Path:
     """Where a model called `name` lives under models_dir (repo ids use '--' for '/')."""
@@ -115,20 +149,31 @@ class FasterWhisperEngine(ASREngine):
         if cfg.vad.enabled:
             kwargs["vad_parameters"] = {"min_silence_duration_ms": cfg.vad.min_silence_ms}
 
-        segment_iter, info = self._model.transcribe(str(audio_path), **kwargs)
-        segments = [
-            Segment(
-                start=float(s.start),
-                end=float(s.end),
-                text=s.text.strip(),
-                confidence=math.exp(s.avg_logprob) if s.avg_logprob is not None else None,
-            )
-            for s in segment_iter
-        ]
+        from faster_whisper import decode_audio
+
+        audio = decode_audio(str(audio_path), sampling_rate=SAMPLE_RATE)
+        bounds = chunk_bounds(audio)
+        segments: list[Segment] = []
+        info = None
+        for start, end in zip(bounds, bounds[1:], strict=False):
+            offset = start / SAMPLE_RATE
+            segment_iter, chunk_info = self._model.transcribe(audio[start:end], **kwargs)
+            if info is None:
+                info = chunk_info
+                kwargs["language"] = info.language  # "auto": detect once, keep it for the rest
+            segments += [
+                Segment(
+                    start=offset + float(s.start),
+                    end=offset + float(s.end),
+                    text=s.text.strip(),
+                    confidence=math.exp(s.avg_logprob) if s.avg_logprob is not None else None,
+                )
+                for s in segment_iter
+            ]
         return Transcript(
             segments=segments,
-            language=info.language,
-            duration=float(info.duration),
+            language=info.language if info else cfg.language,
+            duration=len(audio) / SAMPLE_RATE,
             engine=self.name,
             model=cfg.model,
         )
