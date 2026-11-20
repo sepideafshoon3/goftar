@@ -44,7 +44,7 @@ repos:
         stages: [pre-commit, pre-push]
       - id: pytest
         name: pytest (fast suite before push)
-        entry: python -m pytest -q -x
+        entry: scripts/pre-push-pytest.sh
         language: system
         always_run: true
         pass_filenames: false
