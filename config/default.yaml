@@ -26,6 +26,7 @@ postprocess:
   fix_arabic_chars: true    # ي -> ی, ك -> ک
   remove_diacritics: true
   digits: persian           # persian | latin | keep
+  number_words: true        # سه هزار و پونصد -> ۳۵۰۰ (Persian fine-tunes write numbers as words)
   half_space: true          # می رود -> می‌رود, کتاب ها -> کتاب‌ها
   punctuation: true         # , -> ،   ? -> ؟   spacing around punctuation
   spelling: false           # fix homophone-letter typos (ز/ذ/ض/ظ, س/ص/ث, ...) with a word list
