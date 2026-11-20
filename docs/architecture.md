@@ -30,7 +30,7 @@ flowchart TD
 - Offline is a first-class setting (`offline: true`), not an accident of having cached models.
   Importing `goftar` turns off onnxruntime's telemetry, which would otherwise contact Microsoft.
 - Memory does not grow with file length: the engine decodes the audio once and transcribes it
-  in 10-minute pieces cut at the quietest point near each boundary (about 1.9 GB peak RAM for a
+  in 10-minute pieces cut at the quietest point near each boundary (about 2 GB peak RAM for a
   74-minute file).
 - A batch never stops on a bad file, but it stops at once on an engine error (such as a missing
   model), which would fail for every file. Output names mirror the input folders, so two
