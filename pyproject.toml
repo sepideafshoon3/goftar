@@ -50,7 +50,8 @@ all = ["goftar[api,ui,fa,dev]"]
 goftar = "goftar.interfaces.cli:app"
 
 [project.urls]
-Homepage = "https://github.com/niktapournabi/goftar"
+Homepage = "https://github.com/sepideafshoon3/goftar"
+Issues = "https://github.com/sepideafshoon3/goftar/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
