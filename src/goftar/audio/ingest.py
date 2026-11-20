@@ -104,3 +104,33 @@ def collect_audio_files(paths: Iterable[Path], recursive: bool = False) -> list[
         elif p.is_file():
             found[p] = None
     return sorted(found)
+
+
+def output_stems(
+    files: Iterable[Path], inputs: Iterable[Path], out_dir: Path | None
+) -> dict[Path, tuple[Path, str]]:
+    """Where each file's transcript goes: (folder, stem). Never two files to the same place.
+
+    Without out_dir, transcripts go next to their audio. With out_dir, the folder structure
+    under each input folder is mirrored (day1/voice.ogg -> OUT/day1/voice.txt), so same-named
+    files in different folders do not overwrite each other. Files that would still clash (same
+    name given from two places, or voice.ogg + voice.mp3) get a numbered stem: voice-2.
+    """
+    roots = [Path(p).resolve() for p in inputs if Path(p).is_dir()]
+    taken: set[tuple[Path, str]] = set()
+    plan: dict[Path, tuple[Path, str]] = {}
+    for f in files:
+        f = Path(f)
+        if out_dir is None:
+            folder = f.parent
+        else:
+            parent = f.parent.resolve()
+            root = next((r for r in roots if parent.is_relative_to(r)), None)
+            folder = Path(out_dir) / parent.relative_to(root) if root else Path(out_dir)
+        stem, n = f.stem, 1
+        while (folder, stem) in taken:
+            n += 1
+            stem = f"{f.stem}-{n}"
+        taken.add((folder, stem))
+        plan[f] = (folder, stem)
+    return plan

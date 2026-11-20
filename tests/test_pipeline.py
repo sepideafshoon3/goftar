@@ -117,3 +117,48 @@ def test_faster_whisper_engine_prefers_local_model_dir(tmp_path):
     (tmp_path / "small").mkdir()
     engine = FasterWhisperEngine(Config(model="small", models_dir=str(tmp_path)))
     assert engine.resolve_model() == str(tmp_path / "small")
+
+
+def test_output_stems_mirror_subfolders_and_never_collide(tmp_path):
+    from goftar.audio.ingest import output_stems
+
+    src, out = tmp_path / "in", tmp_path / "out"
+    files = [src / "voice.ogg", src / "day1" / "voice.ogg", src / "day2" / "voice.ogg",
+             src / "voice.mp3"]  # fmt: skip
+    for f in files:
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.touch()
+    plan = output_stems(files, [src], out)
+    assert plan[src / "day1" / "voice.ogg"] == (out / "day1", "voice")
+    assert plan[src / "day2" / "voice.ogg"] == (out / "day2", "voice")
+    assert plan[src / "voice.ogg"] == (out, "voice")
+    assert plan[src / "voice.mp3"] == (out, "voice-2")  # same stem in the same folder
+    assert len(set(plan.values())) == len(files)
+
+
+def test_output_stems_without_out_dir_stay_next_to_audio(tmp_path):
+    from goftar.audio.ingest import output_stems
+
+    a, b = tmp_path / "a" / "x.ogg", tmp_path / "b" / "x.ogg"
+    plan = output_stems([a, b], [a, b], None)
+    assert plan == {a: (a.parent, "x"), b: (b.parent, "x")}
+
+
+def test_output_stems_explicit_files_with_same_name(tmp_path):
+    from goftar.audio.ingest import output_stems
+
+    a, b = tmp_path / "a" / "x.ogg", tmp_path / "b" / "x.ogg"
+    plan = output_stems([a, b], [a, b], tmp_path / "out")
+    assert plan[a] == (tmp_path / "out", "x") and plan[b] == (tmp_path / "out", "x-2")
+
+
+def test_output_stems_with_relative_input_folder(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    from goftar.audio.ingest import output_stems
+
+    (tmp_path / "sub").mkdir()
+    monkeypatch.chdir(tmp_path)
+    plan = output_stems([Path("sub/v.ogg"), Path("v.ogg")], [Path(".")], Path("out"))
+    assert plan[Path("sub/v.ogg")] == (Path("out/sub"), "v")
+    assert plan[Path("v.ogg")] == (Path("out"), "v")
