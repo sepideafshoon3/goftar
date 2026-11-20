@@ -102,3 +102,24 @@ def test_pipeline_passes_progress_only_when_asked(fake_config, wav_file):
     pipe.transcribe(wav_file)
     pipe.transcribe(wav_file, progress=cb)
     assert seen == [None, cb]
+
+
+def test_segments_html_is_rtl_and_escaped():
+    from goftar.interfaces.ui import segments_html
+
+    out = segments_html([["00:01", "00:03", "سلام <b>&"]])
+    assert out.startswith('<table dir="rtl">')
+    assert "<th>شروع</th><th>پایان</th><th>متن</th>" in out
+    assert "سلام &lt;b&gt;&amp;" in out
+    assert segments_html([]) == ""
+
+
+def test_summary_uses_persian_digits_and_decimal_separator():
+    from goftar.core.types import Segment, Transcript
+    from goftar.interfaces.ui import summarize
+
+    t = Transcript(
+        segments=[Segment(0, 75, "سلام")], language="fa", duration=75.0,
+        engine="fake", model="m", processing_time=3.42,
+    )  # fmt: skip
+    assert summarize(t) == "مدت صدا: ۰۱:۱۵ · زمان تبدیل: ۳٫۴ ثانیه · ۱ بخش"
