@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import inspect
 import re
 import tempfile
@@ -31,7 +32,8 @@ HEAD = (
     "<script>document.documentElement.dir = 'rtl'; document.documentElement.lang = 'fa';</script>"
 )
 
-# Right-to-left page; the time columns of the segment table stay left-to-right.
+# Right-to-left page. The segment table is plain HTML (Gradio's Dataframe draws its rows
+# left-to-right in a monospace font); its time columns stay left-to-right.
 
 CSS = """
 .gradio-container {
@@ -44,10 +46,14 @@ CSS = """
 .gradio-container .icon-button-wrapper.top-panel { right: auto; left: 0; }
 #goftar-intro, #goftar-summary { overflow: visible !important; }
 .gradio-container button.label-wrap { direction: rtl; }
-#goftar-segments td:nth-child(1), #goftar-segments td:nth-child(2) {
-  direction: ltr;
-  white-space: nowrap;
+#goftar-segments table { width: 100%; border-collapse: collapse; direction: rtl; }
+#goftar-segments th, #goftar-segments td {
+  text-align: right;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-color-primary);
+  vertical-align: top;
 }
+#goftar-segments .t { direction: ltr; white-space: nowrap; font-variant-numeric: tabular-nums; }
 """
 
 _FA_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
@@ -98,6 +104,21 @@ def copy_button_kwargs(component: Any) -> dict[str, Any]:
     return {}
 
 
+def segments_html(rows: list[list[str]]) -> str:
+    """The segment table as right-to-left HTML (start, end, text)."""
+    if not rows:
+        return ""
+    body = "".join(
+        f'<tr><td class="t">{html.escape(a)}</td><td class="t">{html.escape(b)}</td>'
+        f"<td>{html.escape(t)}</td></tr>"
+        for a, b, t in rows
+    )
+    return (
+        '<table dir="rtl"><thead><tr><th>شروع</th><th>پایان</th><th>متن</th></tr></thead>'
+        f"<tbody>{body}</tbody></table>"
+    )
+
+
 @dataclass
 class UIResult:
     text: str
@@ -111,7 +132,8 @@ def summarize(result: Transcript) -> str:
         return "صحبتی در این صدا پیدا نشد."
     parts = [f"مدت صدا: {fa_digits(clock(result.duration))}"]
     if result.processing_time is not None:
-        parts.append(f"زمان تبدیل: {fa_digits(f'{result.processing_time:.1f}')} ثانیه")
+        seconds = fa_digits(f"{result.processing_time:.1f}").replace(".", "٫")  # Persian decimal
+        parts.append(f"زمان تبدیل: {seconds} ثانیه")
     parts.append(f"{fa_digits(len(result.segments))} بخش")
     return " · ".join(parts)
 
@@ -139,13 +161,13 @@ def build_ui(pipeline: Pipeline):
 
     def run(audio_path: str | None, progress=gr.Progress()):  # noqa: B008 - Gradio's API
         if not audio_path:  # cleared the player: clear the outputs too
-            return "", [], None, ""
+            return "", "", None, ""
         progress(0, desc="آماده‌سازی صدا…")
         try:
             r = transcribe_for_ui(pipeline, audio_path, lambda f: progress(f, desc="تبدیل به متن…"))
         except ValueError as exc:
             raise gr.Error(str(exc), print_exception=False) from None
-        return r.text, r.rows, r.files, r.summary
+        return r.text, segments_html(r.rows), r.files, r.summary
 
     with gr.Blocks(title="گفتار") as demo:
         gr.Markdown(INTRO, rtl=True, elem_id="goftar-intro")
@@ -165,13 +187,7 @@ def build_ui(pipeline: Pipeline):
             **copy_button_kwargs(gr.Textbox),
         )
         with gr.Accordion("بخش‌ها با زمان", open=False):
-            table = gr.Dataframe(
-                headers=["شروع", "پایان", "متن"],
-                datatype=["str", "str", "str"],
-                interactive=False,
-                wrap=True,
-                elem_id="goftar-segments",
-            )
+            table = gr.HTML(elem_id="goftar-segments")
         files = gr.File(
             label="دانلود: txt (متن)، srt و vtt (زیرنویس)",
             file_count="multiple",
