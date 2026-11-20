@@ -90,3 +90,27 @@ jobs:
         with:
           name: dist
           path: dist/
+
+  docker:
+    name: docker (${{ matrix.variant }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: cpu
+            gpu: "0"
+          - variant: gpu
+            gpu: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build image
+        run: docker build --build-arg GPU=${{ matrix.gpu }} -t goftar:${{ matrix.variant }} .
+      - name: Smoke test (no network)
+        run: |
+          docker run --rm --network none goftar:${{ matrix.variant }} version
+          docker run --rm --network none goftar:${{ matrix.variant }} doctor
+      - name: Only the allowlisted files went into the image
+        run: |
+          docker run --rm --entrypoint sh goftar:${{ matrix.variant }} -c \
+            'test ! -e /data/bench && test -z "$(find / -xdev \( -name "*.m4a" -o -name "*.ogg" \) 2>/dev/null | grep -v site-packages)"'
