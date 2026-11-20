@@ -34,7 +34,7 @@ RUN extras="api,ui"; if [ "$GPU" = "1" ]; then extras="$extras,gpu"; fi \
 RUN useradd --create-home --uid 1000 goftar \
     && mkdir -p /data/models /data/cache \
     && chown -R goftar:goftar /data
-COPY --chown=goftar:goftar docker/goftar.yaml /data/goftar.yaml
+COPY --chown=goftar:goftar docker/config.yaml /data/goftar.yaml
 COPY docker/entrypoint.sh /usr/local/bin/goftar-entrypoint
 
 USER goftar
