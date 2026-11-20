@@ -13,6 +13,7 @@ from dataclasses import replace
 
 from goftar.core.config import PostprocessConfig
 from goftar.core.types import Transcript
+from goftar.text.numbers import words_to_digits
 
 log = logging.getLogger(__name__)
 
@@ -108,6 +109,8 @@ def normalize_text(text: str, opts: PostprocessConfig | None = None) -> str:
     if opts.remove_diacritics:
         text = _DIACRITICS.sub("", text)
 
+    if opts.number_words:
+        text = words_to_digits(text, decimal_sep="٫" if opts.digits == "persian" else ".")
     if opts.digits == "persian":
         text = text.translate(_TO_PERSIAN)
     elif opts.digits == "latin":
