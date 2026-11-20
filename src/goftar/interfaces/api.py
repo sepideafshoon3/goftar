@@ -22,6 +22,12 @@ MAX_UPLOAD_BYTES = 200 * 1024 * 1024
 MAX_JOBS_KEPT = 200
 
 
+def _public_error(exc: Exception, temp_path: Path, filename: str | None) -> str:
+    """Error text for the client: the uploaded file's name, never our temp path."""
+    message = str(exc).replace(str(temp_path), temp_path.name)
+    return message.replace(temp_path.name, filename or "the uploaded file")
+
+
 def create_app(config: Config | None = None, pipeline: Pipeline | None = None):
     from fastapi import FastAPI, File, HTTPException, UploadFile
     from fastapi.responses import PlainTextResponse
@@ -75,7 +81,7 @@ def create_app(config: Config | None = None, pipeline: Pipeline | None = None):
         try:
             result = pipe.transcribe(path)
         except GoftarError as exc:
-            raise HTTPException(422, str(exc)) from exc
+            raise HTTPException(422, _public_error(exc, path, file.filename)) from exc
         finally:
             path.unlink(missing_ok=True)
         if format == "json":
@@ -101,7 +107,7 @@ def create_app(config: Config | None = None, pipeline: Pipeline | None = None):
                     "result": pipe.transcribe(path).to_dict(),
                 }
             except Exception as exc:
-                outcome = {"status": "failed", "error": str(exc)}
+                outcome = {"status": "failed", "error": _public_error(exc, path, file.filename)}
             finally:
                 path.unlink(missing_ok=True)
             with jobs_lock:

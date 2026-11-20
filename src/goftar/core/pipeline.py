@@ -14,6 +14,7 @@ from goftar.core.cache import TranscriptCache
 from goftar.core.config import Config, apply_offline
 from goftar.core.types import Transcript
 from goftar.engines import ASREngine, get_engine
+from goftar.errors import EngineError, GoftarError
 from goftar.text.normalize import postprocess_transcript
 
 log = logging.getLogger(__name__)
@@ -79,10 +80,19 @@ class Pipeline:
     def transcribe_many(
         self, paths: Iterable[str | Path]
     ) -> Iterator[tuple[Path, Transcript | Exception]]:
-        """Transcribe several files; a failure on one file never stops the rest."""
+        """Transcribe several files; a bad file never stops the rest.
+
+        An EngineError (model missing, CUDA broken) is raised instead: it would fail every
+        file the same way, so the batch stops at once.
+        """
         for p in paths:
             try:
                 yield Path(p), self.transcribe(p)
+            except EngineError:
+                raise
+            except GoftarError as exc:  # expected (bad file): the caller reports it in one line
+                log.debug("failed to transcribe %s", p, exc_info=True)
+                yield Path(p), exc
             except Exception as exc:
                 log.exception("failed to transcribe %s", p)
                 yield Path(p), exc
