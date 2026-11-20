@@ -10,7 +10,7 @@ from typing import Any
 
 from goftar.core.config import AUTO_COMPUTE_TYPE, Config
 from goftar.core.types import Segment, Transcript
-from goftar.engines.base import ASREngine
+from goftar.engines.base import ASREngine, ProgressFn
 from goftar.errors import EngineError
 
 log = logging.getLogger(__name__)
@@ -146,7 +146,7 @@ class FasterWhisperEngine(ASREngine):
             cpu_threads=cfg.cpu_threads,
         )
 
-    def transcribe(self, audio_path: str | Path) -> Transcript:
+    def transcribe(self, audio_path: str | Path, progress: ProgressFn | None = None) -> Transcript:
         self.load()
         cfg = self.config
         kwargs: dict[str, Any] = {
@@ -174,15 +174,19 @@ class FasterWhisperEngine(ASREngine):
             if info is None:
                 info = chunk_info
                 kwargs["language"] = info.language  # "auto": detect once, keep it for the rest
-            segments += [
-                Segment(
-                    start=offset + float(s.start),
-                    end=offset + float(s.end),
-                    text=s.text.strip(),
-                    confidence=segment_confidence(s),
+            for s in segment_iter:
+                segments.append(
+                    Segment(
+                        start=offset + float(s.start),
+                        end=offset + float(s.end),
+                        text=s.text.strip(),
+                        confidence=segment_confidence(s),
+                    )
                 )
-                for s in segment_iter
-            ]
+                if progress is not None:
+                    progress(min(1.0, (offset + float(s.end)) * SAMPLE_RATE / max(len(audio), 1)))
+            if progress is not None:
+                progress(end / max(len(audio), 1))
         return Transcript(
             segments=segments,
             language=info.language if info else cfg.language,

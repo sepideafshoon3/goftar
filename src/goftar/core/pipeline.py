@@ -14,6 +14,7 @@ from goftar.core.cache import TranscriptCache
 from goftar.core.config import Config, apply_offline
 from goftar.core.types import Transcript
 from goftar.engines import ASREngine, get_engine
+from goftar.engines.base import ProgressFn
 from goftar.errors import EngineError, GoftarError
 from goftar.text.normalize import postprocess_transcript
 
@@ -54,7 +55,7 @@ class Pipeline:
                 self._cache = TranscriptCache(self.config.cache.path)
         return self._cache
 
-    def transcribe(self, path: str | Path) -> Transcript:
+    def transcribe(self, path: str | Path, progress: ProgressFn | None = None) -> Transcript:
         audio_path = Path(path).expanduser()
         if not audio_path.is_file():
             raise FileNotFoundError(f"audio file not found: {audio_path}")
@@ -69,7 +70,12 @@ class Pipeline:
 
         started = time.perf_counter()
         with prepared_audio(audio_path, self.config.audio) as audio, self._lock:
-            raw = self.engine.transcribe(audio)
+            # only pass `progress` when asked for, so engines without it keep working
+            raw = (
+                self.engine.transcribe(audio, progress=progress)
+                if progress is not None
+                else self.engine.transcribe(audio)
+            )
         result = postprocess_transcript(raw, self.config.postprocess)
         result = replace(result, processing_time=time.perf_counter() - started)
 
