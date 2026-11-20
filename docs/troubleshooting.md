@@ -69,6 +69,9 @@ installs the cuBLAS and cuDNN libraries into the env.
 **`Unable to load any of {libcudnn_ops.so.9...}`**. The CUDA libraries are not on the loader
 path. Run `./scripts/setup.sh --gpu`, then **deactivate and re-activate the env**
 (`conda deactivate && conda activate goftar`): the path is set by the env's activate script.
+The same error appears when goftar is started without activating the env, for example as
+`~/miniconda3/envs/goftar/bin/goftar serve` from a service, cron job or IDE run button. Start it
+with `conda run -n goftar goftar serve` instead, which runs the activate script.
 To transcribe right away on the CPU instead: `goftar transcribe voice.ogg --device cpu`.
 
 **`goftar doctor` shows `cuda (ctranslate2): 0 device(s) visible`.** Check `nvidia-smi`. If it
