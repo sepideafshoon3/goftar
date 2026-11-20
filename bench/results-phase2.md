@@ -53,6 +53,25 @@
   is too little to change the default on 28 clips.
 - Turning VAD off costs 7 points on the held-out set: keep it on.
 
+## Denoise (turbo)
+
+`audio.denoise: true` runs FFmpeg `highpass=f=80,afftdn=nf=-25` before transcription. Both rows
+were run on 2026-11-20 with the same code (main after #14), so they compare fairly with each
+other; the default row differs slightly from the table above because of run-to-run noise.
+
+| Setting | Main WER | Main CER | Held-out WER | Held-out CER | RTF |
+|---|---|---|---|---|---|
+| default (`denoise: false`) | 19.8% | 7.0% | 25.7% | 12.5% | 0.09 |
+| `denoise: true` | 19.9% | 7.2% | 37.2% | 13.8% | 0.10 |
+
+- **Denoise hurts.** No change on the main set, 11.5 points worse on the held-out set, and worse
+  on every one of the 8 held-out clips (by 3 to 25 points; audio08 went from 21.4% to 46.4%).
+- The held-out clips are Opus voice notes (the format Telegram and WhatsApp use). They are
+  already compressed, and the noise reduction removes speech detail along with the noise. Whisper was
+  trained on noisy audio and copes better with the noise than with the filtered speech.
+- Keep `denoise: false`. It may still help recordings with steady loud noise (a fan, an
+  engine), but none of our test files show that, so it is not recommended.
+
 ## Long file (74-minute podcast, no reference)
 
 Checked with a script for repeated segments, n-gram loops, text-free gaps, very high or very

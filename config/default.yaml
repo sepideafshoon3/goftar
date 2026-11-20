@@ -19,7 +19,7 @@ vad:
 
 audio:
   sample_rate: 16000
-  denoise: false        # FFmpeg high-pass + noise reduction; helps noisy voice notes
+  denoise: false        # FFmpeg high-pass + noise reduction; made voice notes worse in tests (bench/results-phase2.md)
 
 postprocess:
   enabled: true
