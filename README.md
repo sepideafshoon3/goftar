@@ -61,6 +61,30 @@ print(result.text)
 Do not trust the table: run `goftar bench` on your own recordings and decide with numbers.
 Results from the maintainer's laptop are published in [`bench/results.md`](bench/results.md).
 
+### Persian fine-tunes
+
+Turbo-based Persian fine-tunes are more accurate on text (14% vs 20% WER on our set, see
+[`bench/results-phase2.md`](bench/results-phase2.md)) but return one segment per 30 seconds,
+so use them for `.txt` output, not subtitles. They ship as Transformers weights; convert them
+once to CTranslate2 (needs `transformers` and `torch`, about 5 GB of free RAM, 3.2 GB download):
+
+```bash
+hf download MohammadGholizadeh/whisper-large-v3-turbo-persian --local-dir /tmp/mg-hf
+# this repo has no preprocessor_config.json; the base model's works (128 mel bins)
+hf download openai/whisper-large-v3-turbo preprocessor_config.json --local-dir /tmp/mg-hf
+python - <<'PY'
+import ctranslate2
+ctranslate2.converters.TransformersConverter(
+    "/tmp/mg-hf", copy_files=["tokenizer.json", "preprocessor_config.json"],
+    load_as_float16=True,  # loads 1.6 GB instead of 3.2 GB; only in the Python API, not the CLI
+).convert("models/mg-turbo-fa", quantization="int8_float16")
+PY
+goftar transcribe voice.ogg --model models/mg-turbo-fa
+```
+
+The fine-tunes write numbers as words; `postprocess.number_words` (on by default) turns them
+into digits.
+
 ## Architecture
 
 ```
