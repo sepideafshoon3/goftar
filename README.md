@@ -54,6 +54,29 @@ for seg in result.segments:
     print(f"{seg.start:7.1f}s  {seg.text}")
 ```
 
+### With Docker
+
+No conda needed. The model is not in the image: it is downloaded once into a volume on the
+first start (about 1.6 GB), and every start after that runs with `--offline`.
+
+```bash
+docker build -t goftar .                                   # CPU image
+docker run --rm -p 7860:7860 -v goftar-models:/data/models -v goftar-cache:/data/cache goftar
+# web UI on http://127.0.0.1:7860
+
+docker build -t goftar:gpu --build-arg GPU=1 .             # NVIDIA GPU image
+docker run --rm --gpus all -p 7860:7860 -v goftar-models:/data/models goftar:gpu
+
+docker run --rm -p 8000:8000 -v goftar-models:/data/models goftar serve --host 0.0.0.0
+docker run --rm -v goftar-models:/data/models -v "$PWD:/work" goftar \
+  transcribe /work/voice.ogg -o /work -f txt,srt
+```
+
+The GPU image needs the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
+Set `-e GOFTAR_MODEL=medium` to use another model. The build only sends `src/`,
+`pyproject.toml`, the README and the license to Docker (see `.dockerignore`), so recordings in
+the repo folder never end up in an image.
+
 `device` and `compute_type` default to `auto`: `cuda` + `int8_float16` when an NVIDIA GPU is
 visible, otherwise `cpu` + `int8`. Something not working? See
 [Common problems](docs/troubleshooting.md) (proxies, disk space, CUDA, microphone).
