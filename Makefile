@@ -3,7 +3,7 @@
 help:  ## Show this help
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-8s %s\n", $$1, $$2}'
 
-setup:  ## Create the conda env, hooks and GitHub repo
+setup:  ## Create the conda env and git hooks
 	./scripts/setup.sh
 
 lint:  ## Ruff lint + format check
