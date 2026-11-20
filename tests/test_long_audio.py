@@ -70,3 +70,20 @@ def test_segments_are_shifted_to_the_original_timeline(monkeypatch):
     assert result.duration == pytest.approx(50)
     # language is detected on the first piece, then kept
     assert [lang for _, lang in engine._model.calls] == [None, "fa", "fa"]
+
+
+def test_progress_rises_to_one_across_pieces(monkeypatch):
+    faster_whisper = pytest.importorskip("faster_whisper")
+    audio = noise(50)
+    monkeypatch.setattr(faster_whisper, "decode_audio", lambda *a, **k: audio)
+    monkeypatch.setattr(fw, "CHUNK_SECONDS", 20)
+    monkeypatch.setattr(fw, "SEARCH_SECONDS", 2)
+    engine = fw.FasterWhisperEngine(Config())
+    engine._model = StubModel()
+    seen: list[float] = []
+
+    engine.transcribe("unused.wav", progress=seen.append)
+
+    assert seen == sorted(seen)
+    assert 0 < seen[0] < 1
+    assert seen[-1] == pytest.approx(1.0)

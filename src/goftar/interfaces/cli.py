@@ -198,14 +198,14 @@ def ui(
     _setup_logging(verbose)
     os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "False")  # stay offline/private
     try:
-        from goftar.interfaces.ui import build_ui
+        from goftar.interfaces.ui import build_ui, launch_options
     except ImportError as exc:
         raise _fail("UI extras missing: pip install 'goftar[ui]'") from exc
     cfg = _build_config(
         config, model=model, device=device, compute_type=compute_type,
         language=language, offline=offline,
     )  # fmt: skip
-    build_ui(Pipeline(cfg)).launch(server_name=host, server_port=port)
+    build_ui(Pipeline(cfg)).launch(server_name=host, server_port=port, **launch_options())
 
 
 @app.command("fix-text")
