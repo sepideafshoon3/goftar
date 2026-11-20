@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import shutil
 import subprocess
 import tempfile
@@ -59,9 +60,35 @@ def prepared_audio(path: Path, cfg: AudioConfig) -> Iterator[Path]:
             build_ffmpeg_cmd(path, dst, cfg), capture_output=True, text=True, check=False
         )
         if proc.returncode != 0 or not dst.exists():
-            detail = (proc.stderr or "").strip()[-500:]
-            raise AudioError(f"could not decode {path.name}: {detail or 'unknown ffmpeg error'}")
+            log.debug("ffmpeg failed on %s:\n%s", path, proc.stderr)
+            raise AudioError(
+                f"could not decode {path.name}: {explain_ffmpeg_error(path, proc.stderr)}"
+            )
         yield dst
+
+
+# (pattern in ffmpeg's stderr, message for people). First match wins.
+_FFMPEG_ERRORS = [
+    ("does not contain any stream", "it has no audio track"),
+    ("matches no streams", "it has no audio track"),
+    ("Invalid data found", "it is not an audio file, or it is damaged"),
+    ("End of file", "it is not an audio file, or it is damaged"),
+    ("moov atom not found", "the file is incomplete (an unfinished download or recording?)"),
+    ("Permission denied", "permission denied"),
+]
+_FFMPEG_PREFIX = re.compile(r"^\[[^\]]*@ 0x[0-9a-f]+\]\s*")
+
+
+def explain_ffmpeg_error(path: Path, stderr: str | None) -> str:
+    """Turn FFmpeg's stderr into one short line (the full text is logged at debug level)."""
+    if path.is_file() and path.stat().st_size == 0:
+        return "the file is empty"
+    stderr = stderr or ""
+    for pattern, message in _FFMPEG_ERRORS:
+        if pattern in stderr:
+            return message
+    lines = [_FFMPEG_PREFIX.sub("", ln).strip() for ln in stderr.splitlines() if ln.strip()]
+    return lines[-1][:200] if lines else "unknown ffmpeg error"
 
 
 def collect_audio_files(paths: Iterable[Path], recursive: bool = False) -> list[Path]:
@@ -77,3 +104,33 @@ def collect_audio_files(paths: Iterable[Path], recursive: bool = False) -> list[
         elif p.is_file():
             found[p] = None
     return sorted(found)
+
+
+def output_stems(
+    files: Iterable[Path], inputs: Iterable[Path], out_dir: Path | None
+) -> dict[Path, tuple[Path, str]]:
+    """Where each file's transcript goes: (folder, stem). Never two files to the same place.
+
+    Without out_dir, transcripts go next to their audio. With out_dir, the folder structure
+    under each input folder is mirrored (day1/voice.ogg -> OUT/day1/voice.txt), so same-named
+    files in different folders do not overwrite each other. Files that would still clash (same
+    name given from two places, or voice.ogg + voice.mp3) get a numbered stem: voice-2.
+    """
+    roots = [Path(p).resolve() for p in inputs if Path(p).is_dir()]
+    taken: set[tuple[Path, str]] = set()
+    plan: dict[Path, tuple[Path, str]] = {}
+    for f in files:
+        f = Path(f)
+        if out_dir is None:
+            folder = f.parent
+        else:
+            parent = f.parent.resolve()
+            root = next((r for r in roots if parent.is_relative_to(r)), None)
+            folder = Path(out_dir) / parent.relative_to(root) if root else Path(out_dir)
+        stem, n = f.stem, 1
+        while (folder, stem) in taken:
+            n += 1
+            stem = f"{f.stem}-{n}"
+        taken.add((folder, stem))
+        plan[f] = (folder, stem)
+    return plan
