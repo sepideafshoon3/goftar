@@ -32,6 +32,41 @@ def test_half_space_not_inserted_inside_words():
     assert normalize_text("اسمی خوب") == "اسمی خوب"
 
 
+@pytest.mark.parametrize(
+    ("glued", "fixed"),
+    [
+        ("میکنم", "می‌کنم"),
+        ("نمیدونم", "نمی‌دونم"),
+        ("میشه", "می‌شه"),
+        ("میتونی", "می‌تونی"),
+        ("میگفتش", "می‌گفتش"),  # past stem + object clitic
+        ("میکرد", "می‌کرد"),  # past stem, no ending
+        ("میبینمت", "می‌بینمت"),
+        ("میخواییم", "می‌خواییم"),  # Whisper's spelling of میخوایم
+    ],
+)
+def test_half_space_for_glued_mi_prefix(glued, fixed):
+    assert normalize_text(glued) == fixed.replace("‌", ZWNJ)
+
+
+def test_glued_mi_before_persian_punctuation():
+    assert normalize_text("چی میدونی؟") == f"چی می{ZWNJ}دونی؟"
+
+
+@pytest.mark.parametrize(
+    "word",
+    # nouns and names that start with "می", plus "میاد/میارن", which are written glued
+    ["میز", "میدان", "میدون", "میلیون", "میمون", "میان", "میکروفون", "میتینگ", "میکور",
+     "میدانی", "میاد", "میارن", "میوه"],
+)  # fmt: skip
+def test_glued_mi_rule_leaves_non_verbs_alone(word):
+    assert normalize_text(word) == word
+
+
+def test_glued_mi_rule_is_off_with_half_space_disabled():
+    assert normalize_text("میکنم", PostprocessConfig(half_space=False)) == "میکنم"
+
+
 def test_half_space_for_plural_and_comparative_suffixes():
     assert normalize_text("کتاب ها بزرگ تر") == f"کتاب{ZWNJ}ها بزرگ{ZWNJ}تر"
 
@@ -58,7 +93,12 @@ def test_zwnj_cleanup():
 
 @pytest.mark.parametrize(
     "text",
-    ["سلام, حال شما چطوره ?", "من 3 تا كتاب ها می خرم", "او می رود ،اما نمی داند ؟"],
+    [
+        "سلام, حال شما چطوره ?",
+        "من 3 تا كتاب ها می خرم",
+        "او می رود ،اما نمی داند ؟",
+        "نمیدونم چی میگفتش، میدونی؟",
+    ],
 )
 def test_idempotent(text):
     once = normalize_text(text)

@@ -42,6 +42,7 @@ class PostprocessConfig:
     fix_arabic_chars: bool = True
     remove_diacritics: bool = True
     digits: str = "persian"  # persian | latin | keep
+    number_words: bool = True  # "سه هزار و پونصد" -> "۳۵۰۰" (see goftar.text.numbers)
     half_space: bool = True
     punctuation: bool = True
     use_hazm: bool = False

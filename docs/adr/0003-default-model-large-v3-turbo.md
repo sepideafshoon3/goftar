@@ -68,3 +68,24 @@ confirmation. The fine-tune above has not yet been re-tested on this set.
 - `small` is not good enough for Persian (52% WER) and stays only as a quick test model.
 - Open: the held-out set (8 clips) shows higher error than the main set, and a long (10+ minute)
   file still needs to confirm the numbers. Revisit this ADR if they disagree.
+
+## Revisited 2026-11-19 (phase 2)
+
+Full numbers in [`bench/results-phase2.md`](../../bench/results-phase2.md).
+
+- **Long file:** turbo on a 74-minute podcast runs at 10x real time with no hallucination loops,
+  no text-free gaps and no subtitle-credit phrases. The default holds on long recordings.
+- **AmirMohseni fine-tune on held-out:** 37.1% WER against 26.9% for turbo. The open question
+  above is settled: not adopted.
+- **Turbo-based Persian fine-tunes** are better than turbo on text. MohammadGholizadeh scores
+  14.3% / 23.0% WER (main / held-out) against 19.8% / 26.9%, at the same speed and half the
+  RAM. But they return one segment per 30-second window (no timestamp tokens), so SRT/VTT
+  output would be unusable.
+- **Decoding settings:** none beats the defaults on both sets. A domain `initial_prompt` helps
+  the set it was written for and hurts the held-out set by 6 points, so it stays empty.
+
+Decision: keep `large-v3-turbo` as the default for now. Re-evaluate the switch to
+MohammadGholizadeh once its long segments are re-split using word timestamps (which it does
+produce) and a short hand-checked excerpt of a long file shows that its ~13% lower word count
+is fillers it leaves out, not speech it misses. Users who only need `.txt` can already use it
+(see "Persian fine-tunes" in the README).
