@@ -1,22 +1,12 @@
 # Architecture
 
-```
-  voice.ogg
-      |
-      v
- audio/ingest.py      ffmpeg -> 16 kHz mono WAV (optional denoise); temp files auto-cleaned
-      |
-      v
- engines/             ASREngine.transcribe(path) -> Transcript   (raw text, time-aligned)
-      |
-      v
- text/normalize.py    Arabic letters, digits, half-space, punctuation   (pure Python, idempotent)
-      |
-      v
- core/cache.py        SQLite keyed by sha256(audio) + config fingerprint
-      |
-      v
- export/formats.py    txt | srt | vtt | json
+```mermaid
+flowchart TD
+    A["voice.ogg"] --> I["audio/ingest.py<br/>ffmpeg to 16 kHz mono WAV, optional denoise;<br/>temp files cleaned up; clear errors for bad files"]
+    I --> E["engines/<br/>ASREngine.transcribe(path) to Transcript<br/>faster-whisper: VAD, 10-minute pieces cut at pauses"]
+    E --> N["text/normalize.py<br/>Arabic letters, digits, half-space, number words,<br/>punctuation (pure Python, idempotent)"]
+    N --> C[("core/cache.py<br/>SQLite keyed by sha256(audio)<br/>+ config fingerprint")]
+    N --> X["export/formats.py<br/>txt, srt, vtt (two lines of about 42 chars), json"]
 ```
 
 ## Modules
@@ -27,7 +17,7 @@
 | `core/config.py` | typed config, YAML loading, strict validation, cache fingerprint |
 | `core/pipeline.py` | orchestration; lazy engine; one lock so a single loaded model serves one job at a time |
 | `engines/` | backend interface + registry; built-ins are imported lazily |
-| `text/` | Persian normalisation |
+| `text/` | Persian normalisation, number words (`numbers.py`), optional spelling and glossary |
 | `metrics.py`, `bench.py` | WER/CER and the benchmark harness |
 | `interfaces/` | CLI (Typer), REST (FastAPI), UI (Gradio): thin layers over `Pipeline` |
 | `doctor.py` | environment diagnostics |
@@ -38,3 +28,10 @@
 - Heavy imports (faster-whisper, fastapi, gradio) are lazy, so `goftar version` and the test suite stay fast and work without them.
 - Config is strict: unknown keys raise. The cache key hashes every setting that can change output, so changing the model or prompt never serves stale text.
 - Offline is a first-class setting (`offline: true`), not an accident of having cached models.
+  Importing `goftar` turns off onnxruntime's telemetry, which would otherwise contact Microsoft.
+- Memory does not grow with file length: the engine decodes the audio once and transcribes it
+  in 10-minute pieces cut at the quietest point near each boundary (about 1.9 GB peak RAM for a
+  74-minute file).
+- A batch never stops on a bad file, but it stops at once on an engine error (such as a missing
+  model), which would fail for every file. Output names mirror the input folders, so two
+  `voice.ogg` files in different folders never overwrite each other.
