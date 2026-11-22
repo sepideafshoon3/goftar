@@ -123,3 +123,35 @@ def test_summary_uses_persian_digits_and_decimal_separator():
         engine="fake", model="m", processing_time=3.42,
     )  # fmt: skip
     assert summarize(t) == "مدت صدا: ۰۱:۱۵ · زمان تبدیل: ۳٫۴ ثانیه · ۱ بخش"
+
+
+def test_segments_html_rows_seek_and_flag_weak_segments():
+    from goftar.interfaces.ui import segments_html
+
+    out = segments_html(
+        [["00:01", "00:03", "الف"], ["00:03", "00:05", "ب"]], [1.0, 3.5], [False, True]
+    )
+    assert '<tr data-i="0" data-start="1.00">' in out
+    assert '<tr data-i="1" data-start="3.50" class="weak">' in out
+    assert out.count("بررسی شود") == 1
+
+
+def test_stats_cards_show_speed_words_and_weak_count():
+    from goftar.core.types import Segment, Transcript
+    from goftar.interfaces.ui import stats_html
+
+    t = Transcript(
+        segments=[Segment(0, 60, "سلام دنیا")], duration=60.0, processing_time=4.0,
+    )  # fmt: skip
+    out = stats_html(t, rows=1, weak=1)
+    assert "۱۵٫۰×" in out and "۲</div>" not in out
+    assert "کلمه" in out and "۱ بخش با اطمینان پایین" in out
+    assert "صحبتی" in stats_html(Transcript(), rows=0, weak=0)
+
+
+def test_launch_options_use_only_local_fonts():
+    pytest.importorskip("gradio")
+    from goftar.interfaces.ui import launch_options
+
+    css = launch_options()["theme"]._get_theme_css()
+    assert "fonts.googleapis" not in css
