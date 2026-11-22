@@ -155,3 +155,31 @@ def test_launch_options_use_only_local_fonts():
 
     css = launch_options()["theme"]._get_theme_css()
     assert "fonts.googleapis" not in css
+
+
+def test_stream_for_ui_yields_partials_then_the_result(fake_config, wav_file):
+    from goftar.interfaces.ui import Partial, UIResult, stream_for_ui
+
+    items = list(stream_for_ui(Pipeline(fake_config), str(wav_file)))
+    assert isinstance(items[-1], UIResult)
+    partials = [i for i in items if isinstance(i, Partial)]
+    # FakeEngine cannot stream, so its segments arrive together (cleaned, blanks dropped)
+    assert partials and [s.text for s in partials[-1].segments] == [
+        row[2] for row in items[-1].rows
+    ]
+
+
+def test_stream_for_ui_raises_persian_errors(fake_config):
+    from goftar.interfaces.ui import stream_for_ui
+
+    with pytest.raises(ValueError, match="اول صدا را ضبط"):
+        list(stream_for_ui(Pipeline(fake_config), None))
+
+
+def test_live_html_marks_tentative_text_and_escapes():
+    from goftar.interfaces.ui import live_html
+
+    out = live_html("سلام <b>", "دنیا", listening=True)
+    assert "سلام &lt;b&gt;" in out and '<span class="tent">دنیا</span>' in out
+    assert "در حال شنیدن" in out and "caret" in out
+    assert "caret" not in live_html("سلام")

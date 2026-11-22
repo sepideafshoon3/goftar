@@ -5,18 +5,21 @@ from __future__ import annotations
 import contextlib
 import html
 import inspect
+import queue
 import re
 import tempfile
-from collections.abc import Callable
+import threading
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from goftar.core.config import Config
 from goftar.core.pipeline import Pipeline
-from goftar.core.types import Transcript
+from goftar.core.types import Segment, Transcript
 from goftar.errors import EngineError, GoftarError
 from goftar.export.formats import write_transcript
+from goftar.live import LiveTranscriber
 
 DOWNLOAD_FORMATS = ("txt", "srt", "vtt")
 MAX_FILE_SIZE = "500mb"  # a 74-minute m4a is about 70 MB
@@ -158,6 +161,31 @@ footer { display: none !important; }
 #goftar-segments .flag { font-size: 11.5px; color: var(--g-warn); margin-inline-start: 6px;
   white-space: nowrap; }
 .g-hint { font-size: 12.5px; color: var(--body-text-color-subdued); margin: 0 0 4px; }
+/* Progress while a file is being transcribed */
+.g-prog { display: grid; gap: 8px; }
+.g-prog .bar { height: 10px; border-radius: 999px; background: var(--g-soft); overflow: hidden; }
+.g-prog .bar i { display: block; height: 100%; border-radius: inherit; background: var(--g-grad);
+  transition: width .4s ease; }
+.g-prog .lbl { display: flex; justify-content: space-between; font-size: 13.5px;
+  color: var(--body-text-color-subdued); font-variant-numeric: tabular-nums; }
+
+/* Live tab */
+.g-live {
+  min-height: 220px; max-height: 460px; overflow-y: auto; padding: 18px 20px;
+  border-radius: 16px; background: var(--background-fill-secondary);
+  font-size: 19px; line-height: 2.1; direction: rtl; text-align: right;
+}
+.g-live .tent { color: var(--body-text-color-subdued); }
+.g-live .caret { display: inline-block; width: 2px; height: 1.1em; vertical-align: -0.2em;
+  margin-inline-start: 3px; background: var(--g-accent); animation: g-blink 1s steps(1) infinite; }
+@keyframes g-blink { 50% { opacity: 0; } }
+.g-live .idle { color: var(--body-text-color-subdued); font-size: 15px; }
+.g-live-meta { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; font-size: 13px;
+  color: var(--body-text-color-subdued); }
+.g-dot { width: 9px; height: 9px; border-radius: 50%; background: #ef4444;
+  box-shadow: 0 0 0 0 rgba(239, 68, 68, .6); animation: g-pulse 1.4s infinite; }
+@keyframes g-pulse { 70% { box-shadow: 0 0 0 9px rgba(239, 68, 68, 0); } }
+@media (prefers-reduced-motion: reduce) { .g-live .caret, .g-dot { animation: none; } }
 .g-foot { text-align: center; font-size: 12.5px; color: var(--body-text-color-subdued);
   padding: 8px 0 18px; }
 """
@@ -313,12 +341,16 @@ def transcribe_for_ui(
     pipeline: Pipeline,
     audio_path: str | None,
     progress: Callable[[float], None] | None = None,
+    on_segment: Callable[[Segment], None] | None = None,
 ) -> UIResult:
     """Run one file and write the downloads. Raises ValueError with a Persian message."""
     if not audio_path:
         raise ValueError("اول صدا را ضبط یا یک فایل صوتی آپلود کنید.")
     try:
-        result = pipeline.transcribe(audio_path, progress=progress)
+        if on_segment is None:
+            result = pipeline.transcribe(audio_path, progress=progress)
+        else:
+            result = pipeline.transcribe(audio_path, progress=progress, on_segment=on_segment)
     except GoftarError as exc:
         raise ValueError(persian_error(exc)) from exc
     out_dir = Path(tempfile.mkdtemp(prefix="goftar-ui-"))
@@ -335,6 +367,92 @@ def transcribe_for_ui(
         starts=[s.start for s in kept],
         weak=weak,
     )
+
+
+@dataclass
+class Partial:
+    """What is known so far while a file is still being transcribed."""
+
+    segments: list[Segment]
+    fraction: float  # 0.0 to 1.0
+
+
+def stream_for_ui(pipeline: Pipeline, audio_path: str | None) -> Iterator[Partial | UIResult]:
+    """Transcribe in a worker thread; yield a Partial whenever there is news, then the UIResult.
+
+    Errors from transcribe_for_ui (ValueError with a Persian message) are raised here.
+    """
+    events: queue.Queue[tuple[str, Any]] = queue.Queue()
+    box: dict[str, Any] = {}
+
+    def work() -> None:
+        try:
+            box["result"] = transcribe_for_ui(
+                pipeline,
+                audio_path,
+                progress=lambda f: events.put(("progress", f)),
+                on_segment=lambda s: events.put(("segment", s)),
+            )
+        except BaseException as exc:  # handed to the caller's thread below
+            box["error"] = exc
+        finally:
+            events.put(("done", None))
+
+    threading.Thread(target=work, name="goftar-ui-transcribe", daemon=True).start()
+    segments: list[Segment] = []
+    fraction = 0.0
+    while True:
+        batch = [events.get()]
+        with contextlib.suppress(queue.Empty):
+            while True:  # take everything that is already waiting: one screen update for all
+                batch.append(events.get_nowait())
+        done = False
+        for kind, value in batch:
+            if kind == "segment":
+                segments.append(value)
+            elif kind == "progress":
+                fraction = max(fraction, float(value))
+            else:
+                done = True
+        if done:
+            break
+        yield Partial(list(segments), fraction)
+    if "error" in box:
+        raise box["error"]
+    yield box["result"]
+
+
+def progress_html(fraction: float, segments: int) -> str:
+    pct = max(0, min(100, round(fraction * 100)))
+    label = "آماده‌سازی صدا…" if pct == 0 and not segments else "در حال تبدیل به متن…"
+    found = f"{fa_digits(segments)} بخش تا این‌جا" if segments else ""
+    return (
+        f'<div class="g-prog"><div class="lbl"><span>{label}</span>'
+        f"<span>{found} {fa_digits(pct)}٪</span></div>"
+        f'<div class="bar"><i style="width:{pct}%"></i></div></div>'
+    )
+
+
+def live_html(committed: str, tentative: str = "", listening: bool = False) -> str:
+    """The live text: committed text, then the tentative part greyed out, then a caret."""
+    if not committed and not tentative:
+        idle = (
+            "گوش می‌دهم… شروع کنید به صحبت."
+            if listening
+            else ("دکمه‌ی ضبط را بزنید و صحبت کنید؛ متن همان‌طور که حرف می‌زنید این‌جا نوشته می‌شود.")
+        )
+        body = f'<span class="idle">{idle}</span>'
+    else:
+        body = html.escape(committed)
+        if tentative:
+            body += f' <span class="tent">{html.escape(tentative)}</span>'
+    caret = '<span class="caret"></span>' if listening else ""
+    meta = (
+        '<div class="g-live-meta"><span class="g-dot"></span>در حال شنیدن</div>'
+        if listening
+        else ""
+    )
+    return f'{meta}<div class="g-live" dir="rtl">{body}{caret}</div>'
 
 
 def _device_label(config: Config) -> str:
@@ -372,10 +490,19 @@ def hero_html(config: Config) -> str:
 """
 
 
+LIVE_TIPS = """
+<ul class="g-tips">
+  <li>متن خاکستری حدس اولیه است؛ با هر مکث، دوباره و دقیق‌تر نوشته می‌شود.</li>
+  <li>دقت حالت زنده کمی پایین‌تر از تبدیل فایل است. برای متن نهایی یک جلسه‌ی مهم،
+  ضبط کامل را در تب «فایل» تبدیل کنید.</li>
+</ul>
+"""
+
 TIPS = """
 <ul class="g-tips">
   <li>با <b>ضبط</b> یا <b>آپلود</b>، تبدیل خودکار شروع می‌شود.</li>
   <li>برای گفتار ساخته شده است، نه آهنگ.</li>
+  <li>متن هم‌زمان با تبدیل، بخش‌به‌بخش ظاهر می‌شود.</li>
   <li>روی هر بخش در تب «بخش‌ها» بزنید تا صدا از همان‌جا پخش شود.</li>
 </ul>
 """
@@ -384,15 +511,50 @@ TIPS = """
 def build_ui(pipeline: Pipeline):
     import gradio as gr
 
-    def run(audio_path: str | None, progress=gr.Progress()):  # noqa: B008 - Gradio's API
+    def run(audio_path: str | None):
         if not audio_path:  # cleared the player: clear the outputs too
-            return "", "", None, empty_stats()
-        progress(0, desc="آماده‌سازی صدا…")
+            yield "", "", None, empty_stats()
+            return
+        yield "", "", None, progress_html(0, 0)
         try:
-            r = transcribe_for_ui(pipeline, audio_path, lambda f: progress(f, desc="تبدیل به متن…"))
+            for item in stream_for_ui(pipeline, audio_path):
+                if isinstance(item, Partial):
+                    segs = item.segments
+                    rows = [[clock(x.start), clock(x.end), x.text] for x in segs]
+                    yield (
+                        " ".join(x.text for x in segs),
+                        segments_html(rows),
+                        None,
+                        progress_html(item.fraction, len(segs)),
+                    )
+                else:
+                    r = item
+                    yield r.text, segments_html(r.rows, r.starts, r.weak), r.files, r.stats
         except ValueError as exc:
             raise gr.Error(str(exc), print_exception=False) from None
-        return r.text, segments_html(r.rows, r.starts, r.weak), r.files, r.stats
+
+    def live_decode(samples, fast: bool) -> str:
+        try:
+            return " ".join(x.text for x in pipeline.transcribe_samples(samples, fast=fast))
+        except GoftarError as exc:
+            raise gr.Error(persian_error(exc), print_exception=False) from None
+
+    def live_start():
+        return LiveTranscriber(live_decode), live_html("", listening=True), ""
+
+    def live_feed(chunk, session):
+        if session is None:
+            session = LiveTranscriber(live_decode)
+        if chunk is not None:
+            sample_rate, data = chunk
+            session.feed(sample_rate, data)
+        return live_html(session.text, session.tentative, listening=True), session
+
+    def live_stop(session):
+        if session is None:
+            return live_html(""), "", None
+        text = session.finish()
+        return live_html(text), text, None
 
     def seek(evt: gr.SelectData):
         try:
@@ -405,49 +567,90 @@ def build_ui(pipeline: Pipeline):
 
     with gr.Blocks(title="گفتار") as demo:
         gr.HTML(hero_html(pipeline.config), elem_id="g-hero")
-        with gr.Row(equal_height=False):
-            with gr.Column(scale=5, min_width=320, elem_classes="g-card"):
-                gr.HTML('<div class="g-h"><span class="n">۱</span>صدا</div>')
-                audio = gr.Audio(
-                    sources=["microphone", "upload"],
-                    type="filepath",
-                    label="ضبط یا آپلود صدا",
-                    elem_id="goftar-audio",
-                )
-                button = gr.Button("✨ تبدیل به متن", variant="primary", elem_id="g-run")
-                gr.HTML(TIPS)
-            with gr.Column(scale=7, min_width=360, elem_classes="g-card"):
-                gr.HTML('<div class="g-h"><span class="n">۲</span>نتیجه</div>')
-                stats = gr.HTML(empty_stats(), elem_id="g-stats")
-                with gr.Tabs():
-                    with gr.Tab("📝 متن"):
-                        text = gr.Textbox(
-                            label="متن (قابل ویرایش)",
-                            lines=12,
+        with gr.Tabs(elem_id="g-modes"):
+            with gr.Tab("📁 فایل"), gr.Row(equal_height=False):
+                with gr.Column(scale=5, min_width=320, elem_classes="g-card"):
+                    gr.HTML('<div class="g-h"><span class="n">۱</span>صدا</div>')
+                    audio = gr.Audio(
+                        sources=["microphone", "upload"],
+                        type="filepath",
+                        label="ضبط یا آپلود صدا",
+                        elem_id="goftar-audio",
+                    )
+                    button = gr.Button("✨ تبدیل به متن", variant="primary", elem_id="g-run")
+                    gr.HTML(TIPS)
+                with gr.Column(scale=7, min_width=360, elem_classes="g-card"):
+                    gr.HTML('<div class="g-h"><span class="n">۲</span>نتیجه</div>')
+                    stats = gr.HTML(empty_stats(), elem_id="g-stats")
+                    with gr.Tabs():
+                        with gr.Tab("📝 متن"):
+                            text = gr.Textbox(
+                                label="متن (قابل ویرایش)",
+                                lines=12,
+                                rtl=True,
+                                interactive=True,
+                                placeholder="متن اینجا ظاهر می‌شود…",
+                                **copy_button_kwargs(gr.Textbox),
+                            )
+                        with gr.Tab("⏱️ بخش‌ها"):
+                            gr.HTML('<p class="g-hint">روی هر بخش بزنید تا صدا به آن‌جا برود.</p>')
+                            table = gr.HTML(elem_id="goftar-segments", js_on_load=SEGMENTS_JS)
+                        with gr.Tab("⬇️ دانلود"):
+                            files = gr.File(
+                                label="txt (متن)، srt و vtt (زیرنویس)",
+                                file_count="multiple",
+                                interactive=False,
+                            )
+            with gr.Tab("🔴 زنده"):
+                with gr.Row(equal_height=False):
+                    with gr.Column(scale=4, min_width=300, elem_classes="g-card"):
+                        gr.HTML('<div class="g-h"><span class="n">۱</span>میکروفون</div>')
+                        live_mic = gr.Audio(
+                            sources=["microphone"],
+                            type="numpy",
+                            streaming=True,
+                            label="ضبط زنده",
+                            elem_id="g-live-mic",
+                        )
+                        gr.HTML(LIVE_TIPS)
+                    with gr.Column(scale=8, min_width=360, elem_classes="g-card"):
+                        gr.HTML('<div class="g-h"><span class="n">۲</span>متن زنده</div>')
+                        live_box = gr.HTML(live_html(""), elem_id="g-live-box")
+                        live_text = gr.Textbox(
+                            label="متن نهایی (بعد از توقف ضبط، قابل ویرایش)",
+                            lines=6,
                             rtl=True,
                             interactive=True,
-                            placeholder="متن اینجا ظاهر می‌شود…",
                             **copy_button_kwargs(gr.Textbox),
                         )
-                    with gr.Tab("⏱️ بخش‌ها"):
-                        gr.HTML('<p class="g-hint">روی هر بخش بزنید تا صدا به آن‌جا برود.</p>')
-                        table = gr.HTML(elem_id="goftar-segments", js_on_load=SEGMENTS_JS)
-                    with gr.Tab("⬇️ دانلود"):
-                        files = gr.File(
-                            label="txt (متن)، srt و vtt (زیرنویس)",
-                            file_count="multiple",
-                            interactive=False,
-                        )
+                live_session = gr.State(None)
         gr.HTML(
             '<div class="g-foot">گفتار · متن‌باز و آفلاین · '
             "هیچ داده‌ای از این دستگاه خارج نمی‌شود</div>"
         )
 
         outputs = [text, table, files, stats]
-        button.click(run, inputs=audio, outputs=outputs)
-        audio.stop_recording(run, inputs=audio, outputs=outputs)
-        audio.upload(run, inputs=audio, outputs=outputs)
+        # The progress bar is drawn in the stats card, so Gradio's overlay is not needed;
+        # it would also hide the text that streams in.
+        for event in (button.click, audio.stop_recording, audio.upload):
+            event(run, inputs=audio, outputs=outputs, show_progress="hidden")
         table.select(seek, outputs=audio, queue=False)
+
+        live_mic.start_recording(
+            live_start, outputs=[live_session, live_box, live_text], queue=False
+        )
+        live_mic.stream(
+            live_feed,
+            inputs=[live_mic, live_session],
+            outputs=[live_box, live_session],
+            stream_every=0.5,
+            time_limit=3600,
+            concurrency_limit=1,
+            show_progress="hidden",
+        )
+        live_mic.stop_recording(
+            live_stop, inputs=live_session, outputs=[live_box, live_text, live_session]
+        )
 
     # One transcription at a time: a second one would compete for the same GPU memory.
     demo.queue(default_concurrency_limit=1, max_size=20)

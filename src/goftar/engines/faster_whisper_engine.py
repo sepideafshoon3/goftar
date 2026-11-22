@@ -10,7 +10,7 @@ from typing import Any
 
 from goftar.core.config import AUTO_COMPUTE_TYPE, Config
 from goftar.core.types import Segment, Transcript
-from goftar.engines.base import ASREngine, ProgressFn
+from goftar.engines.base import ASREngine, ProgressFn, SegmentFn
 from goftar.errors import EngineError
 
 log = logging.getLogger(__name__)
@@ -146,8 +146,7 @@ class FasterWhisperEngine(ASREngine):
             cpu_threads=cfg.cpu_threads,
         )
 
-    def transcribe(self, audio_path: str | Path, progress: ProgressFn | None = None) -> Transcript:
-        self.load()
+    def _decode_kwargs(self) -> dict[str, Any]:
         cfg = self.config
         kwargs: dict[str, Any] = {
             "language": None if cfg.language == "auto" else cfg.language,
@@ -161,6 +160,28 @@ class FasterWhisperEngine(ASREngine):
         }
         if cfg.vad.enabled:
             kwargs["vad_parameters"] = {"min_silence_duration_ms": cfg.vad.min_silence_ms}
+        return kwargs
+
+    def transcribe_samples(self, samples: Any, *, fast: bool = False) -> list[Segment]:
+        self.load()
+        kwargs = self._decode_kwargs()
+        if fast:  # shown for a moment, then redone with the full settings
+            kwargs.update(beam_size=1, word_timestamps=False)
+        segment_iter, _ = self._model.transcribe(samples, **kwargs)
+        return [
+            Segment(float(s.start), float(s.end), s.text.strip(), segment_confidence(s))
+            for s in segment_iter
+        ]
+
+    def transcribe(
+        self,
+        audio_path: str | Path,
+        progress: ProgressFn | None = None,
+        on_segment: SegmentFn | None = None,
+    ) -> Transcript:
+        self.load()
+        cfg = self.config
+        kwargs = self._decode_kwargs()
 
         from faster_whisper import decode_audio
 
@@ -175,14 +196,15 @@ class FasterWhisperEngine(ASREngine):
                 info = chunk_info
                 kwargs["language"] = info.language  # "auto": detect once, keep it for the rest
             for s in segment_iter:
-                segments.append(
-                    Segment(
-                        start=offset + float(s.start),
-                        end=offset + float(s.end),
-                        text=s.text.strip(),
-                        confidence=segment_confidence(s),
-                    )
+                seg = Segment(
+                    start=offset + float(s.start),
+                    end=offset + float(s.end),
+                    text=s.text.strip(),
+                    confidence=segment_confidence(s),
                 )
+                segments.append(seg)
+                if on_segment is not None:
+                    on_segment(seg)
                 if progress is not None:
                     progress(min(1.0, (offset + float(s.end)) * SAMPLE_RATE / max(len(audio), 1)))
             if progress is not None:
