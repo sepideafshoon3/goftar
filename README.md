@@ -18,6 +18,8 @@ the model's unedited output, mistakes included.</sub>
 - **Persian-aware post-processing**: Arabic letter variants, digits, half-spaces (ZWNJ),
   number words to digits, punctuation.
 - **Four interfaces** on one core: CLI (batch), REST API (async jobs), web UI, Python library.
+- **Text as it is ready**: the web UI shows each segment while a file is still being
+  transcribed, and a live tab writes text from the microphone as you speak (experimental).
 - **Readable subtitles**: SRT/VTT with at most two lines of about 42 characters per cue.
 - **Measured, not guessed**: built-in benchmark (WER / CER / speed / RAM) on your own audio.
 - **Fully offline**: download a model once, then `offline: true` guarantees no network access.
@@ -80,6 +82,25 @@ the repo folder never end up in an image.
 `device` and `compute_type` default to `auto`: `cuda` + `int8_float16` when an NVIDIA GPU is
 visible, otherwise `cpu` + `int8`. Something not working? See
 [Common problems](docs/troubleshooting.md) (proxies, disk space, CUDA, microphone).
+
+## Web UI
+
+`goftar ui` opens a right-to-left Persian page on http://127.0.0.1:7860 with two tabs:
+
+- **File (فایل)**: record or upload audio. Text and timed segments fill in while the file is
+  being transcribed, with a progress bar. When it is done you get stats (duration, processing
+  time, speed, words), an editable text box with a copy button, and `.txt` / `.srt` / `.vtt`
+  downloads. Click a segment to play the audio from there. Segments the model was unsure about
+  (confidence below 0.6) are marked for checking.
+- **Live (زنده, experimental)**: speak into the microphone and the text appears about a second
+  later. Greyed text is a quick first guess; at each pause that stretch is transcribed again
+  with the full settings and fixed in place. Silence is never sent to the model. On the RTX 2050
+  a guess takes about 0.65 s and a final pass about 0.85 s for a window of up to 12 s. On a
+  CPU it lags well behind speech. Live text is a little less accurate than a file, so for an
+  important meeting, keep the recording and transcribe it in the File tab.
+
+The page loads no fonts or scripts from the internet. For the best Persian typography,
+install the [Vazirmatn](https://github.com/rastikerdar/vazirmatn) font; it is used when present.
 
 ## Benchmarks
 
@@ -156,6 +177,8 @@ flowchart LR
         E --> N["Persian post-processing<br/>letters, digits, half-space,<br/>number words"]
     end
 
+    UI -. microphone chunks .-> L["live.py<br/>tentative + committed text"]
+    L -. audio in memory .-> E
     C -- yes --> X
     N --> X["export<br/>txt, srt, vtt, json"]
     N -.-> DB[("cache<br/>SQLite")]

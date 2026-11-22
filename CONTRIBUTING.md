@@ -65,5 +65,7 @@ Hooks are a convenience for fast feedback; CI and branch protection are the real
 ## Adding an ASR engine
 
 Subclass `goftar.engines.base.ASREngine`, implement `transcribe()` (and optionally `load()`), and
-register it in `goftar/engines/__init__.py` (`_BUILTIN`). Add a test using the `FakeEngine`
+register it in `goftar/engines/__init__.py` (`_BUILTIN`). Two more things are optional: accept an
+`on_segment` keyword in `transcribe()` so the web UI can show segments while it works, and
+implement `transcribe_samples()` for the live microphone tab. Add a test using the `FakeEngine`
 pattern from `tests/conftest.py`, and a row in the benchmark so it can be compared fairly.

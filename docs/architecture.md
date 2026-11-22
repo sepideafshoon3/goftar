@@ -20,6 +20,7 @@ flowchart TD
 | `text/` | Persian normalisation, number words (`numbers.py`), optional spelling and glossary |
 | `metrics.py`, `bench.py` | WER/CER and the benchmark harness |
 | `interfaces/` | CLI (Typer), REST (FastAPI), UI (Gradio): thin layers over `Pipeline` |
+| `live.py` | live microphone transcription: a pending window decoded quickly as tentative text, then committed on each pause (Gradio-free, so it is unit-tested) |
 | `doctor.py` | environment diagnostics |
 
 ## Design rules
@@ -35,3 +36,10 @@ flowchart TD
 - A batch never stops on a bad file, but it stops at once on an engine error (such as a missing
   model), which would fail for every file. Output names mirror the input folders, so two
   `voice.ogg` files in different folders never overwrite each other.
+- Results can stream. An engine may accept `on_segment` and call it with each segment as soon
+  as it has one; the pipeline cleans each segment with the same post-processing as the final
+  result, so what the UI shows while working equals the final text. Engines without
+  `on_segment` still work: their segments are handed over at the end.
+- Live audio never touches the disk. `ASREngine.transcribe_samples()` takes 16 kHz samples held
+  in memory, and `live.py` keeps each window under 12 seconds (Whisper reads at most 30), cuts
+  at the quietest moment, and skips silence so the model cannot invent text for it.

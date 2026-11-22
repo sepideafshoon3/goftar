@@ -108,5 +108,12 @@ pulls the text towards its own words.
 **The microphone button does nothing.** Browsers allow the microphone only on `localhost` or
 HTTPS. Open `http://127.0.0.1:7860`, not the machine's network address.
 
+**Live text waits until I stop recording.** Use the **Live (زنده)** tab: the microphone in the
+**File** tab records first and transcribes when you stop. In the Live tab, text appears about
+a second after you speak on a GPU; on a CPU it can fall many seconds behind.
+
+**Live text is greyed out.** Grey is the quick first guess. It is redone with the full
+settings, and turns solid, at the next pause in your speech.
+
 **`TypeError: ... unexpected keyword argument 'show_copy_button'`** when starting the UI.
 Old Goftar with Gradio 6. Update Goftar (fixed in 0.1.0).
