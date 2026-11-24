@@ -162,3 +162,22 @@ def test_output_stems_with_relative_input_folder(tmp_path, monkeypatch):
     plan = output_stems([Path("sub/v.ogg"), Path("v.ogg")], [Path(".")], Path("out"))
     assert plan[Path("sub/v.ogg")] == (Path("out/sub"), "v")
     assert plan[Path("v.ogg")] == (Path("out"), "v")
+
+
+def test_on_segment_gets_cleaned_segments_from_a_streaming_engine(fake_config, wav_file):
+    from tests.conftest import FakeEngine
+
+    class Streaming(FakeEngine):
+        def transcribe(self, audio_path, progress=None, on_segment=None):
+            result = super().transcribe(audio_path)
+            for seg in result.segments:
+                on_segment(seg)
+            return result
+
+    fake_config.cache.enabled = False
+    pipe = Pipeline(fake_config)
+    pipe._engine = Streaming(fake_config)
+    seen = []
+    result = pipe.transcribe(wav_file, on_segment=seen.append)
+    assert [s.text for s in seen] == [s.text for s in result.segments]
+    assert seen[0].text == "سلام، حال شما چطوره؟"
